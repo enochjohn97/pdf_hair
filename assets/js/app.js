@@ -86,6 +86,52 @@ function closePanel() {
   App.currentOrder = null;
 }
 
+// ── Dashboard Data Cache ──────────────────────────────────
+App.dashboardData = null;
+
+// ── Dashboard Search ─────────────────────────────────────
+let dashboardSearchTimer = null;
+function dashboardSearchHandler(e) {
+  clearTimeout(dashboardSearchTimer);
+  dashboardSearchTimer = setTimeout(() => {
+    const query = e.target.value.toLowerCase().trim();
+    const countEl = $('dashboard-search-count');
+    let total = 0;
+
+    // Filter Recent Orders
+    const orders = App.dashboardData?.recent_orders || [];
+    const filteredOrders = orders.filter(o => 
+      o.order_number.toLowerCase().includes(query) ||
+      o.customer_name.toLowerCase().includes(query) ||
+      o.status.toLowerCase().includes(query)
+    );
+    renderRecentOrders(filteredOrders);
+    total += filteredOrders.length;
+
+    // Filter Top Products
+    const products = App.dashboardData?.top_products || [];
+    const filteredProducts = products.filter(p => 
+      p.product_name.toLowerCase().includes(query)
+    );
+    renderTopProducts(filteredProducts);
+    total += filteredProducts.length;
+
+    // Filter Low Stock
+    const lowStock = App.dashboardData?.low_stock || [];
+    const filteredLowStock = lowStock.filter(item => 
+      item.name.toLowerCase().includes(query) ||
+      item.unit.toLowerCase().includes(query)
+    );
+    renderLowStockAlert(filteredLowStock);
+    total += filteredLowStock.length;
+
+    // Update count
+    if (countEl) {
+      countEl.textContent = query ? `${total} results` : '';
+    }
+  }, 300);
+}
+
 // ── Sidebar Nav ───────────────────────────────────────────
 function navigate(sectionId) {
   qsa('.section').forEach(s => s.classList.remove('active'));
@@ -107,6 +153,8 @@ function navigate(sectionId) {
   if (sectionId === 'section-orders')     loadOrders();
   if (sectionId === 'section-customers')  loadCustomers();
   if (sectionId === 'section-products')   loadProducts();
+  
+  updateRoleUI();
 }
 
 // ── Auth ──────────────────────────────────────────────────
@@ -140,13 +188,115 @@ async function logout() {
   App.user = null;
 }
 
+async function loadNotifications() {
+  try {
+    const data = await api('api/notifications.php');
+    const badge = $('notif-badge');
+    const count = data.unread_count;
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'block' : 'none';
+    }
+    App.notifications = data.notifications;
+  } catch (err) {
+    console.error('Notifications load failed', err);
+  }
+}
+
+function toggleNotifications() {
+  const dropdown = $('notifications-dropdown');
+  if (dropdown) {
+    dropdown.remove();
+    return;
+  }
+  
+  const panel = document.createElement('div');
+  panel.id = 'notifications-dropdown';
+  panel.className = 'notifications-dropdown';
+  panel.innerHTML = `
+    <div class="notif-header">
+      <span>Notifications</span>
+      <button class="btn btn-icon" onclick="markAllNotificationsRead()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+    </div>
+    <div id="notif-list" class="notif-list"></div>
+  `;
+  
+  const btn = $('notifications-btn');
+  btn.parentNode.insertBefore(panel, btn.nextSibling);
+  
+  renderNotifications(App.notifications || []);
+}
+
+function renderNotifications(notifs) {
+  const list = $('notif-list');
+  if (!list) return;
+  
+  if (!notifs.length) {
+    list.innerHTML = '<div class="notif-empty">No new notifications</div>';
+    return;
+  }
+  
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.is_read ? 'read' : 'unread'}" onclick="markNotificationRead(${n.id})">
+      <div class="notif-icon notif-${n.type}"></div>
+      <div class="notif-content">
+        <div class="notif-title">${n.title}</div>
+        <div class="notif-message">${n.message}</div>
+        <div class="notif-time">${fmtDateTime(n.created_at)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function markNotificationRead(id) {
+  try {
+    await api('api/notifications.php?action=mark-read', 'POST', { ids: [id] });
+    loadNotifications();
+    renderNotifications(App.notifications || []);
+  } catch (err) {
+    toast('error', 'Failed to mark as read');
+  }
+}
+
+async function markAllNotificationsRead() {
+  try {
+    await api('api/notifications.php?action=mark-all-read', 'POST');
+    loadNotifications();
+  } catch (err) {
+    toast('error', 'Failed to mark all as read');
+  }
+}
+
 function showApp() {
   $('login-screen').style.display = 'none';
   $('app').style.display = 'flex';
   $('user-avatar-text').textContent = initials(App.user.name);
   $('user-name-text').textContent   = App.user.name;
-  $('user-role-text').textContent   = App.user.role;
+  $('user-role-text').textContent   = App.user.role.toUpperCase();
   navigate('section-dashboard');
+  loadNotifications();
+  
+  // Role-based UI setup
+  updateRoleUI();
+  
+  // Polling for real-time updates
+  setInterval(() => {
+    if ($('section-dashboard.active')) loadDashboard();
+    if ($('section-orders.active')) loadOrders(App.ordersPage);
+  }, 10000); // 10s poll
+}
+
+function updateRoleUI() {
+  const role = App.user.role;
+  const adminOnly = qsa('.admin-only');
+  const managerOnly = qsa('.manager-staff-only');
+  
+  adminOnly.forEach(el => el.style.display = role === 'admin' ? '' : 'none');
+  managerOnly.forEach(el => el.style.display = ['admin','manager'].includes(role) ? '' : 'none');
 }
 
 // ════════════════════════════════════════════════════════
@@ -155,6 +305,7 @@ function showApp() {
 async function loadDashboard() {
   try {
     const data = await api('api/dashboard.php');
+    App.dashboardData = data; // Cache for search
     const s = data.summary;
 
     // Stat cards
@@ -208,10 +359,10 @@ function animateValue(elId, value, isCurrency = false) {
   requestAnimationFrame(step);
 }
 
-function renderLowStockAlert(items) {
+function renderLowStockAlert(items = []) {
   const el = $('low-stock-alert');
   if (!el) return;
-  if (!items || !items.length) { el.style.display = 'none'; return; }
+  if (!items.length) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
   el.innerHTML = `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
@@ -313,7 +464,7 @@ function renderStatusChart(breakdown) {
   });
 }
 
-function renderRecentOrders(orders) {
+function renderRecentOrders(orders = []) {
   const tbody = $('recent-orders-tbody');
   if (!tbody) return;
   tbody.innerHTML = orders.length ? orders.map(o => `
@@ -326,13 +477,16 @@ function renderRecentOrders(orders) {
       <td><span class="badge badge-${o.payment_status}">${o.payment_status}</span></td>
       <td style="color:var(--text-muted);font-size:.8rem">${fmtDate(o.created_at)}</td>
     </tr>
-  `).join('') : `<tr><td colspan="7"><div class="empty-state"><p>No orders yet</p></div></td></tr>`;
+  `).join('') : `<tr><td colspan="7"><div class="empty-state"><p>${$('dashboard-search')?.value ? 'No matching orders' : 'No orders yet'}</p></div></td></tr>`;
 }
 
-function renderTopProducts(products) {
+function renderTopProducts(products = []) {
   const el = $('top-products-list');
   if (!el) return;
-  if (!products.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:.85rem;padding:8px 0">No sales data yet</div>'; return; }
+  if (!products.length) { 
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:.85rem;padding:8px 0;text-align:center;">' + ($('dashboard-search')?.value ? 'No matching products' : 'No sales data yet') + '</div>'; 
+    return; 
+  }
   el.innerHTML = products.map((p, i) => `
     <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:24px;height:24px;border-radius:50%;background:var(--gold-bg);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0">${i+1}</div>
@@ -1169,6 +1323,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Product search
   $('products-search').addEventListener('input', debounce(e => loadProducts(e.target.value), 400));
+
+  // Dashboard search
+  $('dashboard-search')?.addEventListener('input', dashboardSearchHandler);
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {

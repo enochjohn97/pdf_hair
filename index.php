@@ -217,6 +217,14 @@ bootSession();
           <div class="page-title">Dashboard</div>
         </div>
         <div class="topbar-right">
+          <button id="notifications-btn" class="btn btn-icon relative" title="Notifications"
+            onclick="toggleNotifications()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span id="notif-badge" class="notif-badge" style="display:none">0</span>
+          </button>
           <button id="theme-toggle" class="btn btn-icon" title="Toggle theme" onclick="toggleTheme()">
             <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2">
@@ -249,6 +257,19 @@ bootSession();
            DASHBOARD SECTION
            ══════════════════════════════════════════════ -->
         <div class="section active" id="section-dashboard">
+
+          <!-- Dashboard Search Toolbar -->
+          <div class="toolbar" style="margin-bottom:24px;">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input type="text" id="dashboard-search" placeholder="Search recent orders, products, low stock…">
+            </div>
+            <div id="dashboard-search-count" style="font-size:.875rem;color:var(--text-muted);white-space:nowrap;">
+            </div>
+          </div>
 
           <!-- Low Stock Alert -->
           <div class="alert-bar" id="low-stock-alert" style="display:none"></div>

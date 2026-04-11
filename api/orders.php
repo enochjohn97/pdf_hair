@@ -10,11 +10,13 @@
 // ============================================================
 require_once __DIR__ . '/../config/helpers.php';
 
-$user   = requireAuth();
+$user = requireAuth();
 $method = $_SERVER['REQUEST_METHOD'];
-$id     = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$id = isset($_GET['id']) ? (int) $_GET['id'] : null;
 $action = $_GET['action'] ?? null;
-$pdo    = db();
+$pdo = db();
+
+// Role-based access helpers available via helpers.php
 
 // ── GET ───────────────────────────────────────────────────
 if ($method === 'GET') {
@@ -29,7 +31,8 @@ if ($method === 'GET') {
         );
         $stmt->execute([$id]);
         $order = $stmt->fetch();
-        if (!$order) jsonResp(['error' => 'Order not found'], 404);
+        if (!$order)
+            jsonResp(['error' => 'Order not found'], 404);
 
         $items = $pdo->prepare(
             'SELECT * FROM order_items WHERE order_id = ? ORDER BY id'
@@ -51,42 +54,42 @@ if ($method === 'GET') {
     }
 
     // List orders
-    $where  = ['1=1'];
+    $where = ['1=1'];
     $params = [];
 
     if (!empty($_GET['status'])) {
-        $where[]  = 'o.status = ?';
+        $where[] = 'o.status = ?';
         $params[] = $_GET['status'];
     }
     if (!empty($_GET['payment_status'])) {
-        $where[]  = 'o.payment_status = ?';
+        $where[] = 'o.payment_status = ?';
         $params[] = $_GET['payment_status'];
     }
     if (!empty($_GET['search'])) {
-        $s        = '%' . $_GET['search'] . '%';
-        $where[]  = '(o.order_number LIKE ? OR o.customer_name LIKE ? OR o.notes LIKE ?)';
-        $params   = array_merge($params, [$s, $s, $s]);
+        $s = '%' . $_GET['search'] . '%';
+        $where[] = '(o.order_number LIKE ? OR o.customer_name LIKE ? OR o.notes LIKE ?)';
+        $params = array_merge($params, [$s, $s, $s]);
     }
     if (!empty($_GET['date_from'])) {
-        $where[]  = 'DATE(o.created_at) >= ?';
+        $where[] = 'DATE(o.created_at) >= ?';
         $params[] = $_GET['date_from'];
     }
     if (!empty($_GET['date_to'])) {
-        $where[]  = 'DATE(o.created_at) <= ?';
+        $where[] = 'DATE(o.created_at) <= ?';
         $params[] = $_GET['date_to'];
     }
 
     $whereSQL = implode(' AND ', $where);
-    $page     = max(1, (int)($_GET['page'] ?? 1));
-    $limit    = min(100, max(10, (int)($_GET['limit'] ?? 20)));
-    $offset   = ($page - 1) * $limit;
-    $sort     = in_array($_GET['sort'] ?? '', ['created_at','total','customer_name','status'])
-                ? $_GET['sort'] : 'created_at';
-    $dir      = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $limit = min(100, max(10, (int) ($_GET['limit'] ?? 20)));
+    $offset = ($page - 1) * $limit;
+    $sort = in_array($_GET['sort'] ?? '', ['created_at', 'total', 'customer_name', 'status'])
+        ? $_GET['sort'] : 'created_at';
+    $dir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
 
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM orders o WHERE $whereSQL");
     $countStmt->execute($params);
-    $total = (int)$countStmt->fetchColumn();
+    $total = (int) $countStmt->fetchColumn();
 
     $stmt = $pdo->prepare(
         "SELECT o.id, o.order_number, o.customer_id, o.customer_name, o.status,
@@ -102,23 +105,25 @@ if ($method === 'GET') {
     $orders = $stmt->fetchAll();
 
     jsonResp([
-        'data'       => $orders,
-        'total'      => $total,
-        'page'       => $page,
-        'limit'      => $limit,
-        'total_pages'=> (int)ceil($total / $limit),
+        'data' => $orders,
+        'total' => $total,
+        'page' => $page,
+        'limit' => $limit,
+        'total_pages' => (int) ceil($total / $limit),
     ]);
 }
 
 // ── POST — Create ─────────────────────────────────────────
 if ($method === 'POST') {
-    $data  = body();
+    $data = body();
     $items = $data['items'] ?? [];
 
-    if (empty($items)) jsonResp(['error' => 'Order must have at least one item'], 422);
+    if (empty($items))
+        jsonResp(['error' => 'Order must have at least one item'], 422);
 
     $customerName = clean($data['customer_name'] ?? '');
-    if (!$customerName) jsonResp(['error' => 'Customer name is required'], 422);
+    if (!$customerName)
+        jsonResp(['error' => 'Customer name is required'], 422);
 
     // Duplicate detection: same customer + same items in last 5 minutes
     if (!empty($data['customer_id'])) {
@@ -131,9 +136,9 @@ if ($method === 'POST') {
         $dup = $dupCheck->fetch();
         if ($dup && empty($data['force'])) {
             jsonResp([
-                'error'        => 'Possible duplicate order detected',
-                'duplicate'    => $dup,
-                'require_force'=> true,
+                'error' => 'Possible duplicate order detected',
+                'duplicate' => $dup,
+                'require_force' => true,
             ], 409);
         }
     }
@@ -141,16 +146,16 @@ if ($method === 'POST') {
     // Calculate totals
     $subtotal = 0;
     foreach ($items as &$item) {
-        $item['line_total'] = round((float)($item['quantity'] ?? 1) * (float)($item['unit_price'] ?? 0), 2);
+        $item['line_total'] = round((float) ($item['quantity'] ?? 1) * (float) ($item['unit_price'] ?? 0), 2);
         $subtotal += $item['line_total'];
     }
     unset($item);
 
-    $discount   = (float)($data['discount'] ?? 0);
-    $taxRate    = (float)($data['tax_rate'] ?? 0);
-    $taxAmount  = round(($subtotal - $discount) * $taxRate / 100, 2);
-    $total      = round($subtotal - $discount + $taxAmount, 2);
-    $orderNum   = generateOrderNumber();
+    $discount = (float) ($data['discount'] ?? 0);
+    $taxRate = (float) ($data['tax_rate'] ?? 0);
+    $taxAmount = round(($subtotal - $discount) * $taxRate / 100, 2);
+    $total = round($subtotal - $discount + $taxAmount, 2);
+    $orderNum = generateOrderNumber();
 
     try {
         $pdo->beginTransaction();
@@ -166,13 +171,17 @@ if ($method === 'POST') {
             $data['customer_id'] ?? null,
             $customerName,
             $data['status'] ?? 'pending',
-            $subtotal, $discount, $taxRate, $taxAmount, $total,
-            $data['payment_status']  ?? 'unpaid',
+            $subtotal,
+            $discount,
+            $taxRate,
+            $taxAmount,
+            $total,
+            $data['payment_status'] ?? 'unpaid',
             clean($data['payment_method'] ?? ''),
             clean($data['notes'] ?? ''),
             $user['id'],
         ]);
-        $orderId = (int)$pdo->lastInsertId();
+        $orderId = (int) $pdo->lastInsertId();
 
         // Insert items
         $iStmt = $pdo->prepare(
@@ -184,15 +193,15 @@ if ($method === 'POST') {
                 $orderId,
                 $item['product_id'] ?? null,
                 clean($item['product_name'] ?? ''),
-                (float)($item['quantity'] ?? 1),
-                (float)($item['unit_price'] ?? 0),
+                (float) ($item['quantity'] ?? 1),
+                (float) ($item['unit_price'] ?? 0),
                 $item['line_total'],
                 clean($item['notes'] ?? ''),
             ]);
             // Reduce stock
             if (!empty($item['product_id'])) {
                 $pdo->prepare('UPDATE products SET stock_qty = stock_qty - ? WHERE id = ? AND stock_qty > 0')
-                    ->execute([(float)$item['quantity'], $item['product_id']]);
+                    ->execute([(float) $item['quantity'], $item['product_id']]);
             }
         }
 
@@ -213,25 +222,26 @@ if ($method === 'PUT' && $id) {
     $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
     $stmt->execute([$id]);
     $order = $stmt->fetch();
-    if (!$order) jsonResp(['error' => 'Order not found'], 404);
+    if (!$order)
+        jsonResp(['error' => 'Order not found'], 404);
 
-    $items    = $data['items'] ?? null;
+    $items = $data['items'] ?? null;
     $subtotal = 0;
 
     if ($items !== null) {
         foreach ($items as &$item) {
-            $item['line_total'] = round((float)($item['quantity'] ?? 1) * (float)($item['unit_price'] ?? 0), 2);
+            $item['line_total'] = round((float) ($item['quantity'] ?? 1) * (float) ($item['unit_price'] ?? 0), 2);
             $subtotal += $item['line_total'];
         }
         unset($item);
     } else {
-        $subtotal = (float)$order['subtotal'];
+        $subtotal = (float) $order['subtotal'];
     }
 
-    $discount  = isset($data['discount'])  ? (float)$data['discount']  : (float)$order['discount'];
-    $taxRate   = isset($data['tax_rate'])  ? (float)$data['tax_rate']  : (float)$order['tax_rate'];
+    $discount = isset($data['discount']) ? (float) $data['discount'] : (float) $order['discount'];
+    $taxRate = isset($data['tax_rate']) ? (float) $data['tax_rate'] : (float) $order['tax_rate'];
     $taxAmount = round(($subtotal - $discount) * $taxRate / 100, 2);
-    $total     = round($subtotal - $discount + $taxAmount, 2);
+    $total = round($subtotal - $discount + $taxAmount, 2);
 
     try {
         $pdo->beginTransaction();
@@ -242,15 +252,19 @@ if ($method === 'PUT' && $id) {
              payment_status=?, payment_method=?, notes=?, updated_at=NOW()
              WHERE id=?"
         )->execute([
-            $data['customer_id'] ?? $order['customer_id'],
-            clean($data['customer_name'] ?? $order['customer_name']),
-            $data['status'] ?? $order['status'],
-            $subtotal, $discount, $taxRate, $taxAmount, $total,
-            $data['payment_status']  ?? $order['payment_status'],
-            clean($data['payment_method'] ?? $order['payment_method'] ?? ''),
-            clean($data['notes'] ?? $order['notes'] ?? ''),
-            $id,
-        ]);
+                    $data['customer_id'] ?? $order['customer_id'],
+                    clean($data['customer_name'] ?? $order['customer_name']),
+                    $data['status'] ?? $order['status'],
+                    $subtotal,
+                    $discount,
+                    $taxRate,
+                    $taxAmount,
+                    $total,
+                    $data['payment_status'] ?? $order['payment_status'],
+                    clean($data['payment_method'] ?? $order['payment_method'] ?? ''),
+                    clean($data['notes'] ?? $order['notes'] ?? ''),
+                    $id,
+                ]);
 
         if ($items !== null) {
             $pdo->prepare('DELETE FROM order_items WHERE order_id = ?')->execute([$id]);
@@ -260,10 +274,11 @@ if ($method === 'PUT' && $id) {
             );
             foreach ($items as $item) {
                 $iStmt->execute([
-                    $id, $item['product_id'] ?? null,
+                    $id,
+                    $item['product_id'] ?? null,
                     clean($item['product_name'] ?? ''),
-                    (float)($item['quantity'] ?? 1),
-                    (float)($item['unit_price'] ?? 0),
+                    (float) ($item['quantity'] ?? 1),
+                    (float) ($item['unit_price'] ?? 0),
                     $item['line_total'],
                     clean($item['notes'] ?? ''),
                 ]);
@@ -281,34 +296,43 @@ if ($method === 'PUT' && $id) {
 
 // ── PATCH — Status Update ─────────────────────────────────
 if ($method === 'PATCH' && $id && $action === 'status') {
-    $data   = body();
+    $data = body();
     $status = $data['status'] ?? '';
-    $validStatuses = ['pending','confirmed','processing','shipped','delivered','cancelled'];
+    $validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 
-    if (!in_array($status, $validStatuses)) jsonResp(['error' => 'Invalid status'], 422);
+    if (!in_array($status, $validStatuses))
+        jsonResp(['error' => 'Invalid status'], 422);
 
     $stmt = $pdo->prepare('SELECT order_number FROM orders WHERE id = ?');
     $stmt->execute([$id]);
     $order = $stmt->fetch();
-    if (!$order) jsonResp(['error' => 'Not found'], 404);
+    if (!$order)
+        jsonResp(['error' => 'Not found'], 404);
 
     $pdo->prepare('UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?')
         ->execute([$status, $id]);
 
-    logActivity($user['id'], 'status_change', 'order', $id,
-        "Status changed to $status on order {$order['order_number']}");
+    logActivity(
+        $user['id'],
+        'status_change',
+        'order',
+        $id,
+        "Status changed to $status on order {$order['order_number']}"
+    );
 
     jsonResp(['success' => true, 'status' => $status]);
 }
 
 // ── DELETE ────────────────────────────────────────────────
 if ($method === 'DELETE' && $id) {
-    if ($user['role'] !== 'admin') jsonResp(['error' => 'Forbidden'], 403);
+    if ($user['role'] !== 'admin')
+        jsonResp(['error' => 'Forbidden'], 403);
 
     $stmt = $pdo->prepare('SELECT order_number FROM orders WHERE id = ?');
     $stmt->execute([$id]);
     $order = $stmt->fetch();
-    if (!$order) jsonResp(['error' => 'Not found'], 404);
+    if (!$order)
+        jsonResp(['error' => 'Not found'], 404);
 
     $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$id]);
     logActivity($user['id'], 'deleted', 'order', $id, "Order {$order['order_number']} deleted");

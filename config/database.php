@@ -1,13 +1,13 @@
 <?php
 // ============================================================
-//  OrderPro — Database Configuration
+//  pdfhair — Database Configuration
 //  Edit these values to match your server environment
 // ============================================================
-define('DB_HOST', 'localhost');
+define('DB_HOST', '127.0.0.1');
 define('DB_PORT', '3306');
-define('DB_NAME', 'orderpro_db');
-define('DB_USER', 'root');       // change to your DB user
-define('DB_PASS', 'Master@123');           // change to your DB password
+define('DB_NAME', 'pdfhair_db');
+define('DB_USER', 'pdfhair_user');       // change to your DB user
+define('DB_PASS', 'Pdfhair@12345');           // change to your DB password
 define('DB_CHARSET', 'utf8mb4');
 
 class Database

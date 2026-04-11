@@ -1,15 +1,16 @@
 <?php
 // ============================================================
-//  OrderPro — Session / Auth / Security Helpers
+//  Pdf_Hair — Session / Auth / Security Helpers
 // ============================================================
 require_once __DIR__ . '/database.php';
 
-function bootSession(): void {
+function bootSession(): void
+{
     if (session_status() === PHP_SESSION_NONE) {
         session_set_cookie_params([
             'lifetime' => 86400 * 7,
-            'path'     => '/',
-            'secure'   => false,       // set TRUE on HTTPS
+            'path' => '/',
+            'secure' => false,       // set TRUE on HTTPS
             'httponly' => true,
             'samesite' => 'Strict',
         ]);
@@ -17,27 +18,35 @@ function bootSession(): void {
     }
 }
 
-function requireAuth(): array {
+function requireAuth(): array
+{
     bootSession();
     if (empty($_SESSION['user_id'])) {
         jsonResp(['error' => 'Unauthorized'], 401);
     }
     return [
-        'id'    => $_SESSION['user_id'],
-        'name'  => $_SESSION['user_name'],
+        'id' => $_SESSION['user_id'],
+        'name' => $_SESSION['user_name'],
         'email' => $_SESSION['user_email'],
-        'role'  => $_SESSION['user_role'],
+        'role' => $_SESSION['user_role'],
     ];
 }
 
-function currentUser(): ?array {
+function currentUser(): ?array
+{
     bootSession();
-    if (empty($_SESSION['user_id'])) return null;
-    return ['id' => $_SESSION['user_id'], 'name' => $_SESSION['user_name'],
-            'email' => $_SESSION['user_email'], 'role' => $_SESSION['user_role']];
+    if (empty($_SESSION['user_id']))
+        return null;
+    return [
+        'id' => $_SESSION['user_id'],
+        'name' => $_SESSION['user_name'],
+        'email' => $_SESSION['user_email'],
+        'role' => $_SESSION['user_role']
+    ];
 }
 
-function jsonResp(mixed $data, int $status = 200): never {
+function jsonResp(mixed $data, int $status = 200): never
+{
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
@@ -45,16 +54,19 @@ function jsonResp(mixed $data, int $status = 200): never {
     exit;
 }
 
-function body(): array {
+function body(): array
+{
     $raw = file_get_contents('php://input');
     return json_decode($raw, true) ?? [];
 }
 
-function clean(string $v): string {
+function clean(string $v): string
+{
     return htmlspecialchars(strip_tags(trim($v)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function csrfToken(): string {
+function csrfToken(): string
+{
     bootSession();
     if (empty($_SESSION['csrf'])) {
         $_SESSION['csrf'] = bin2hex(random_bytes(32));
@@ -62,24 +74,89 @@ function csrfToken(): string {
     return $_SESSION['csrf'];
 }
 
-function validateCsrf(string $token): bool {
+function validateCsrf(string $token): bool
+{
     bootSession();
     return !empty($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], $token);
 }
 
-function generateOrderNumber(): string {
+function generateOrderNumber(): string
+{
     $prefix = 'ORD';
-    $date   = date('Ymd');
-    $rand   = strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
+    $date = date('Ymd');
+    $rand = strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
     return "$prefix-$date-$rand";
 }
 
-function logActivity(int $userId, string $action, string $entity, int $entityId, string $detail = ''): void {
+function logActivity(int $userId, string $action, string $entity, int $entityId, string $detail = ''): void
+{
     try {
         $stmt = db()->prepare(
             'INSERT INTO activity_log (user_id, action, entity_type, entity_id, detail, created_at)
              VALUES (?, ?, ?, ?, ?, NOW())'
         );
         $stmt->execute([$userId, $action, $entity, $entityId, $detail]);
-    } catch (Exception) { /* non-fatal */ }
+
+        // Auto-generate notification for relevant users
+        if (in_array($entity, ['order'])) {
+            createNotification($userId, $action, $entity, $entityId, $detail);
+        }
+    } catch (Exception) { /* non-fatal */
+    }
+}
+
+function createNotification(int $userId, string $action, string $entity, int $entityId, string $detail = ''): void
+{
+    try {
+        $pdo = db();
+        $title = match ($action) {
+            'login' => 'User logged in',
+            'logout' => 'User logged out',
+            'created' => 'New order created',
+            'status_change' => 'Order status updated',
+            default => ucfirst($action) . ' activity'
+        };
+
+        $message = $detail ?: "Activity on {$entity} #{$entityId}";
+        $type = match ($entity) {
+            'order' => 'order_status',
+            default => 'order_created'
+        };
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO notifications (user_id, title, message, type, related_id, is_read)
+             VALUES (?, ?, ?, ?, ?, 0)'
+        );
+        $stmt->execute([$userId, $title, $message, $type, $entityId]);
+    } catch (Exception $e) {
+        // Table may not exist yet
+    }
+}
+
+function hasRole(array $allowedRoles): bool
+{
+    $user = currentUser();
+    if (!$user)
+        return false;
+    return in_array($user['role'], $allowedRoles);
+}
+
+function canManageOrders(): bool
+{
+    return hasRole(['admin', 'manager']);
+}
+
+function canApproveOrders(): bool
+{
+    return hasRole(['admin']);
+}
+
+function canEditEntity(string $entity): bool
+{
+    $user = currentUser();
+    if (!$user || $user['role'] === 'admin')
+        return true;
+    if ($user['role'] === 'manager' && $entity === 'orders')
+        return true;
+    return false;
 }
