@@ -31,29 +31,36 @@ if ($method === 'GET') {
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $offset = ($page - 1) * $limit;
 
+    // Staff search only
+    if (empty($search) && hasRole(['staff'])) {
+        jsonResp(['data' => [], 'total' => 0, 'message' => 'Search required for staff']);
+        return;
+    }
+
     if ($search) {
         $s = "%$search%";
         $stmt = $pdo->prepare(
             'SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
              FROM customers c WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?
+             AND c.deleted_at IS NULL
              ORDER BY name LIMIT ? OFFSET ?'
         );
         $stmt->execute([$s, $s, $s, $limit, $offset]);
     } else {
         $stmt = $pdo->prepare(
             'SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
-             FROM customers c ORDER BY name LIMIT ? OFFSET ?'
+             FROM customers c WHERE deleted_at IS NULL ORDER BY name LIMIT ? OFFSET ?'
         );
         $stmt->execute([$limit, $offset]);
     }
 
-    $total = $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn();
+    $total = $pdo->query('SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL')->fetchColumn();
     jsonResp(['data' => $stmt->fetchAll(), 'total' => (int) $total]);
 }
 
 if ($method === 'POST') {
-    if (!canManageOrders()) {
-        jsonResp(['error' => 'Only admin/manager can create customers'], 403);
+    if (!hasPermission('customer.create')) {
+        jsonResp(['error' => 'Insufficient permissions to create customers'], 403);
     }
     $data = body();
     $name = clean($data['name'] ?? '');
@@ -74,8 +81,8 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT' && $id) {
-    if (!canManageOrders()) {
-        jsonResp(['error' => 'Only admin/manager can edit customers'], 403);
+    if (!hasPermission('customer.update.all')) {
+        jsonResp(['error' => 'Insufficient permissions to update customers'], 403);
     }
     $data = body();
     $pdo->prepare(
@@ -94,6 +101,6 @@ if ($method === 'PUT' && $id) {
 if ($method === 'DELETE' && $id) {
     if ($user['role'] !== 'admin')
         jsonResp(['error' => 'Forbidden'], 403);
-    $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$id]);
+    $pdo->prepare('UPDATE customers SET deleted_at = NOW() WHERE id = ?')->execute([$id]);
     jsonResp(['success' => true]);
 }

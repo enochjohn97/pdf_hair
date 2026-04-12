@@ -53,9 +53,15 @@ if ($method === 'GET') {
         jsonResp($order);
     }
 
-    // List orders
-    $where = ['1=1'];
+    // List orders - staff own only
+    $where = ['1=1', 'o.deleted_at IS NULL'];
     $params = [];
+
+    // Staff own orders only
+    if (hasRole(['staff'])) {
+        $where[] = 'o.created_by = ?';
+        $params[] = $user['id'];
+    }
 
     if (!empty($_GET['status'])) {
         $where[] = 'o.status = ?';
@@ -219,11 +225,16 @@ if ($method === 'POST') {
 if ($method === 'PUT' && $id) {
     $data = body();
 
-    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL');
     $stmt->execute([$id]);
     $order = $stmt->fetch();
     if (!$order)
         jsonResp(['error' => 'Order not found'], 404);
+
+    // Permission check for update
+    if (!canEditOrder($order)) {
+        jsonResp(['error' => 'Forbidden - insufficient permissions'], 403);
+    }
 
     $items = $data['items'] ?? null;
     $subtotal = 0;
@@ -303,14 +314,24 @@ if ($method === 'PATCH' && $id && $action === 'status') {
     if (!in_array($status, $validStatuses))
         jsonResp(['error' => 'Invalid status'], 422);
 
-    $stmt = $pdo->prepare('SELECT order_number FROM orders WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL');
     $stmt->execute([$id]);
     $order = $stmt->fetch();
     if (!$order)
         jsonResp(['error' => 'Not found'], 404);
 
-    $pdo->prepare('UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?')
-        ->execute([$status, $id]);
+    if (!canChangeStatus($order, $status)) {
+        jsonResp(['error' => 'Forbidden - cannot change to this status'], 403);
+    }
+
+    // Manager locks on processing
+    $updates = ['status' => $status];
+    if (hasRole(['manager']) && $status === 'processing') {
+        $updates['locked_by_manager'] = 1;
+    }
+    $setClause = 'status = ?, ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys(array_diff_key($updates, ['status' => 0]))));
+    $pdo->prepare("UPDATE orders SET $setClause, updated_at = NOW() WHERE id = ?")
+        ->execute(array_values($updates) + [$id]);
 
     logActivity(
         $user['id'],
@@ -325,16 +346,37 @@ if ($method === 'PATCH' && $id && $action === 'status') {
 
 // ── DELETE ────────────────────────────────────────────────
 if ($method === 'DELETE' && $id) {
-    if ($user['role'] !== 'admin')
+    if (!canDelete('order')) {
         jsonResp(['error' => 'Forbidden'], 403);
+    }
 
-    $stmt = $pdo->prepare('SELECT order_number FROM orders WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
     $stmt->execute([$id]);
     $order = $stmt->fetch();
-    if (!$order)
+    if (!$order || $order['deleted_at']) {
         jsonResp(['error' => 'Not found'], 404);
+    }
 
-    $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$id]);
-    logActivity($user['id'], 'deleted', 'order', $id, "Order {$order['order_number']} deleted");
+    // Soft delete
+    $pdo->prepare('UPDATE orders SET deleted_at = NOW() WHERE id = ?')->execute([$id]);
+    logActivity($user['id'], 'deleted', 'order', $id, "Order {$order['order_number']} soft-deleted");
+    jsonResp(['success' => true]);
+}
+
+// ── RESTORE ──
+if ($method === 'PATCH' && $id && $action === 'restore') {
+    if (!canDelete('order')) {
+        jsonResp(['error' => 'Admin only'], 403);
+    }
+
+    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NOT NULL');
+    $stmt->execute([$id]);
+    $order = $stmt->fetch();
+    if (!$order) {
+        jsonResp(['error' => 'Not found in trash'], 404);
+    }
+
+    $pdo->prepare('UPDATE orders SET deleted_at = NULL, status = "void" WHERE id = ?')->execute([$id]);
+    logActivity($user['id'], 'restored', 'order', $id, "Order {$order['order_number']} restored (status void)");
     jsonResp(['success' => true]);
 }

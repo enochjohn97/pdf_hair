@@ -1,0 +1,23 @@
+RewriteEngine On
+
+# Make role-select.php the default/root page
+DirectoryIndex role-select.php index.php
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+# API security - prevent directory listing
+<FilesMatch "\.(php|json)$">
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type"
+</FilesMatch>
+
+# Block direct access to config files
+<FilesMatch "^config/">
+  Order allow,deny
+  Deny from all
+</FilesMatch>

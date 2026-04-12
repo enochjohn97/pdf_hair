@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS customers (
             INDEX idx_entity (entity_type, entity_id),
             INDEX idx_user   (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-        -- Notifications table
+        
+-- Notifications table
 CREATE TABLE IF NOT EXISTS notifications (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id    INT UNSIGNED NOT NULL,
@@ -122,8 +122,38 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Permissions tables for granular RBAC
+CREATE TABLE IF NOT EXISTS permissions (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id INT UNSIGNED NOT NULL,
+    permission_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (user_id, permission_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE,
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Index for better activity_log performance
 ALTER TABLE activity_log ADD INDEX idx_created_user (created_at, user_id);
+
+-- Add missing columns for RBAC/soft deletes
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS locked_by_manager TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD INDEX idx_locked (locked_by_manager);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL;
+ALTER TABLE orders ADD INDEX idx_deleted (deleted_at);
+
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL;
+ALTER TABLE customers ADD INDEX idx_deleted (deleted_at);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL;
+ALTER TABLE products ADD INDEX idx_deleted (deleted_at);
 
 -- Sample data
 INSERT INTO notifications (user_id, title, message, type, related_id) VALUES
@@ -132,16 +162,75 @@ INSERT INTO notifications (user_id, title, message, type, related_id) VALUES
 
 SELECT 'Schema updated successfully!' AS status;
         
-select * from users;
-        
-INSERT IGNORE INTO users (
-    name, email, password_hash, role
-) VALUES (
-    'admin@pdfhair.com', 'System Admin', '$2a$12$ZQF5lmaJ/UZ1/Fkft28U5eDArhzva.UZNtA0y/8elypk9rXr58zuS', 'admin', 1, 1, NOW()
+INSERT INTO users (name, email, password_hash, role, is_active)
+VALUES ('System Admin', 'admin@pdfhair.com', '$2a$12$OLxQ0JTUkMcpwXy44JDexuW9GZID1sLEKeFnRSAaI3DxLv2Gp/mPa', 'admin', 1)
+ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash);
+
+-- Insert manager user
+INSERT INTO users (name, email, password_hash, role, is_active)
+VALUES ('Manager', 'manager@pdfhair.com', '$2a$12$7K7q/kwUbtc93X3C.FSa4umrddyT1XbvLaSbPDJCj69k6w3G8rDlG', 'manager', 1)
+ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash);
+
+-- Insert staff user
+INSERT INTO users (name, email, password_hash, role, is_active)
+VALUES ('Staff', 'staff@pdfhair.com', '$2a$12$5kB4RHVdBQ1ZM.0mc7lQQuoO8fS5RkgVm3V9rSkMDkNlk5OoYH9cS', 'staff', 1)
+ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash);
+
+-- Seed granular permissions
+INSERT INTO permissions (name, description) VALUES
+('order.create', 'Create new orders'),
+('order.read.own', 'Read own created orders'),
+('order.read.all', 'Read all orders'),
+('order.update.own', 'Update own orders before lock'),
+('order.update.all', 'Update any order'),
+('order.approve', 'Approve pending orders'),
+('order.lock', 'Lock order after approve'),
+('order.delete', 'Soft delete orders'),
+('order.void', 'Void/cancel orders'),
+('order.restore', 'Restore deleted orders'),
+('order.override.lock', 'Override manager lock'),
+('customer.create', 'Create new customers'),
+('customer.read.search', 'Search/read customers for order creation'),
+('customer.read.all', 'List all customers'),
+('customer.update.all', 'Update any customer'),
+('customer.delete', 'Soft delete customers'),
+('customer.restore', 'Restore deleted customers'),
+('product.create', 'Create new products'),
+('product.read.search', 'Search/read products for order creation'),
+('product.read.all', 'List all products'),
+('product.update.all', 'Update any product'),
+('product.delete', 'Soft delete products'),
+('product.restore', 'Restore deleted products'),
+('dashboard.view.global', 'Full dashboard overview (read-only for staff)'),
+('dashboard.view.sales', 'Sales and revenue stats'),
+('dashboard.view.inventory', 'Inventory and stock stats'),
+('dashboard.system.logs', 'System logs and audit trail'),
+('user.read.all', 'Read all users'),
+('user.create', 'Create users'),
+('user.update', 'Update users'),
+('user.delete', 'Delete users')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- Assign bundles
+-- Admin (user_id=1): ALL permissions
+INSERT IGNORE INTO user_permissions (user_id, permission_id)
+SELECT 1, id FROM permissions;
+
+-- Manager (user_id=2): all except admin-only like delete/restore/user.*, override
+INSERT IGNORE INTO user_permissions (user_id, permission_id)
+SELECT 2, p.id FROM permissions p 
+WHERE p.name NOT REGEXP '^(order\\.(delete|restore|void|override)|customer\\.(delete|restore)|product\\.(delete|restore)|user\\.|dashboard\\.system\\.logs)$';
+
+-- Staff (user_id=3): limited create/search + dashboard read-only
+INSERT IGNORE INTO user_permissions (user_id, permission_id)
+SELECT 3, p.id FROM permissions p 
+WHERE p.name IN (
+    'order.create', 'order.read.own', 'order.update.own',
+    'customer.create', 'customer.read.search',
+    'product.create', 'product.read.search',
+    'dashboard.view.global'
 );
 
-INSERT IGNORE INTO users (
-    name, email, password_hash, role
-) VALUES (
-    'manager@pdfhair.com', 'Manager', '$2a$12$D5UefhGnpDnO3y.i6D239uZpAn.dRpJ7xhakBrcHmJxGcX2zfFWD6', 'manager', 1, 1, NOW()
-);
+
+SELECT '✅ Users created successfully! Login: admin@pdfhair.com / admin123' AS status;
+SELECT id, name, email, role FROM users WHERE is_active=1;

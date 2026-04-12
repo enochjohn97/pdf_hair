@@ -12,9 +12,14 @@ function bootSession(): void
             'path' => '/',
             'secure' => false,       // set TRUE on HTTPS
             'httponly' => true,
-            'samesite' => 'Strict',
+            'samesite' => 'Lax',     // Changed to Lax for better compatibility
         ]);
         session_start();
+
+        // Debug logging for 401 troubleshooting
+        if (isset($_GET['debug_session'])) {
+            error_log("SESSION DEBUG: ID=" . session_id() . ", UserID=" . ($_SESSION['user_id'] ?? 'null'));
+        }
     }
 }
 
@@ -37,11 +42,19 @@ function currentUser(): ?array
     bootSession();
     if (empty($_SESSION['user_id']))
         return null;
+
+    $role = $_SESSION['temp_role'] ?? $_SESSION['user_role'];
+
+    if (!isset($_SESSION['permissions'])) {
+        $_SESSION['permissions'] = getUserPermissions($_SESSION['user_id']);
+    }
+
     return [
         'id' => $_SESSION['user_id'],
         'name' => $_SESSION['user_name'],
         'email' => $_SESSION['user_email'],
-        'role' => $_SESSION['user_role']
+        'role' => $role,
+        'permissions' => $_SESSION['permissions']
     ];
 }
 
@@ -133,6 +146,23 @@ function createNotification(int $userId, string $action, string $entity, int $en
     }
 }
 
+function getUserPermissions(int $userId): array
+{
+    static $cache = [];
+    if (!isset($cache[$userId])) {
+        $stmt = db()->prepare("SELECT p.name FROM permissions p INNER JOIN user_permissions up ON p.id = up.permission_id WHERE up.user_id = ?");
+        $stmt->execute([$userId]);
+        $cache[$userId] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+    return $cache[$userId];
+}
+
+function hasPermission(string $permission): bool
+{
+    $user = currentUser();
+    return $user && in_array($permission, $user['permissions'] ?? []);
+}
+
 function hasRole(array $allowedRoles): bool
 {
     $user = currentUser();
@@ -143,7 +173,7 @@ function hasRole(array $allowedRoles): bool
 
 function canManageOrders(): bool
 {
-    return hasRole(['admin', 'manager']);
+    return hasPermission('customer.create') || hasPermission('product.create') || hasPermission('order.create') || hasRole(['admin', 'manager']);
 }
 
 function canApproveOrders(): bool
@@ -159,4 +189,60 @@ function canEditEntity(string $entity): bool
     if ($user['role'] === 'manager' && $entity === 'orders')
         return true;
     return false;
+}
+
+function canListAll(string $entity): bool
+{
+    return hasRole(['admin', 'manager']);
+}
+
+function canDelete(string $entity): bool
+{
+    return hasPermission($entity . '.delete') || hasRole(['admin']);
+}
+
+function canEditOrder(array $order): bool
+{
+    $user = currentUser();
+    if (!$user || (!hasPermission('order.update.own') && !hasPermission('order.update.all')))
+        return false;
+
+    if ($user['role'] === 'admin' || hasPermission('order.override.lock'))
+        return true;
+    if ($user['role'] === 'manager') {
+        return $order['locked_by_manager'] == 0;
+    }
+    if ($user['role'] === 'staff') {
+        return $order['created_by'] == $user['id']
+            && $order['locked_by_manager'] == 0
+            && $order['status'] == 'pending';
+    }
+    return false;
+}
+
+function canChangeStatus(array $order, string $newStatus): bool
+{
+    $user = currentUser();
+    if (!$user)
+        return false;
+
+    if ($user['role'] === 'admin')
+        return true;
+    if ($user['role'] === 'manager')
+        return true;
+    if ($user['role'] === 'staff') {
+        return $order['status'] == 'pending';
+    }
+    return false;
+}
+
+function applyStaffFilters(PDOStatement &$stmt, array &$params, ?int $userId = null): void
+{
+    if (!$userId)
+        $userId = currentUser()['id'] ?? 0;
+    if (hasRole(['staff'])) {
+        array_unshift($params, $userId);
+        $where = $stmt->queryString;
+        $stmt->queryString = str_replace('WHERE', 'WHERE created_by = ? AND', $where);
+    }
 }

@@ -11,7 +11,7 @@ $pdo = db();
 
 if ($method === 'GET') {
     if ($id) {
-        $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ? AND deleted_at IS NULL');
         $stmt->execute([$id]);
         $prod = $stmt->fetch();
         jsonResp($prod ?: ['error' => 'Not found']);
@@ -19,8 +19,14 @@ if ($method === 'GET') {
 
     $search = $_GET['search'] ?? '';
     $active = $_GET['active'] ?? null;
-    $where = ['1=1'];
+    $where = ['1=1', 'deleted_at IS NULL'];
     $params = [];
+
+    // Staff search only
+    if (empty($search) && hasRole(['staff'])) {
+        jsonResp(['data' => []]);
+        return;
+    }
 
     if ($search) {
         $where[] = 'name LIKE ?';
@@ -38,8 +44,8 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    if (!canManageOrders()) {
-        jsonResp(['error' => 'Only admin/manager can create products'], 403);
+    if (!hasPermission('product.create')) {
+        jsonResp(['error' => 'Insufficient permissions to create products'], 403);
     }
     $data = body();
     $name = clean($data['name'] ?? '');
@@ -83,9 +89,10 @@ if ($method === 'PUT' && $id) {
 }
 
 if ($method === 'DELETE' && $id) {
-    if ($user['role'] !== 'admin')
-        jsonResp(['error' => 'Forbidden'], 403);
+    if (!canDelete('product')) {
+        jsonResp(['error' => 'Insufficient permissions'], 403);
+    }
     // Soft delete
-    $pdo->prepare('UPDATE products SET is_active = 0 WHERE id = ?')->execute([$id]);
+    $pdo->prepare('UPDATE products SET deleted_at = NOW() WHERE id = ?')->execute([$id]);
     jsonResp(['success' => true]);
 }

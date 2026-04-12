@@ -182,15 +182,21 @@ img { max-width: 100%; }
   transform: translateY(-50%);
   position: absolute;
 }
+
+.eye-toggle svg {
+  color: var(--text-muted);
+  width: 18px;
+  height: 18px;
+}
 .eye-toggle:hover .input-icon { color: var(--text); }
 
 .login-icon-right .input-icon {
   left: auto;
-  right: 42px;
+  right: 16px;  /* Aligned with eye toggle at 12px + padding adjustment */
 }
 .login-icon-right input {
   padding-left: 16px;
-  padding-right: 42px;
+  padding-right: 44px;  /* Reduced to match eye positioning */
 }
 
 .form-group input,
@@ -501,6 +507,55 @@ html.light #theme-icon {
   border-radius: var(--radius-sm);
 }
 .menu-toggle:hover { background: var(--card); }
+
+/* ── User Dropdown ──────────────────────────────────────── */
+.user-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: all .2s ease;
+  margin-bottom: 8px;
+  min-width: 200px;
+}
+
+.user-dropdown.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: .9rem;
+  border-radius: 0;
+  transition: background .15s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dropdown-item:hover {
+  background: var(--card-hover);
+  color: var(--text);
+}
+
+.dropdown-item.admin-only {
+  opacity: .6;
+}
+
+.sidebar-user:hover .dropdown-item.admin-only {
+  opacity: 1;
+}
 
 .content { 
   padding: var(--content-pad); 

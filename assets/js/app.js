@@ -45,14 +45,27 @@ function toast(type, title, msg = '', duration = 4000) {
   const icons = {
     success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
     error:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
-    info:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
     warning: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    info:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
   };
+  
+  // Enhanced toast with better positioning and animation
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<div class="toast-icon">${icons[type]}</div><div class="toast-body"><div class="toast-title">${title}</div>${msg ? `<div class="toast-msg">${msg}</div>` : ''}</div>`;
+  el.innerHTML = `
+    <div class="toast-icon">${icons[type]}</div>
+    <div class="toast-body">
+      <div class="toast-title">${title}</div>
+      ${msg ? `<div class="toast-msg">${msg}</div>` : ''}
+    </div>
+  `;
   $('toast-container').appendChild(el);
-  setTimeout(() => { el.classList.add('fade-out'); setTimeout(() => el.remove(), 300); }, duration);
+  
+  // Auto remove with smooth fade
+  setTimeout(() => {
+    el.classList.add('fade-out');
+    setTimeout(() => el.remove(), 300);
+  }, duration);
 }
 
 // ── Modal ─────────────────────────────────────────────────
@@ -171,35 +184,40 @@ async function login(e) {
     App.user = data.user;
     App.csrf = data.csrf;
     showApp();
+    toast('success', 'Welcome back!', `Signed in as ${App.user.role.toUpperCase()}`);
   } catch (err) {
     $('login-error').textContent = err.data?.error || 'Login failed. Check your credentials.';
     $('login-error').style.display = 'block';
+    toast('error', 'Login Failed', err.data?.error || 'Check credentials');
     btn.disabled = false;
     btn.textContent = 'Sign In';
   }
 }
 
 async function logout() {
-  try { await api('api/auth.php?action=logout', 'POST'); } catch {}
-  $('app').style.display = 'none';
-  $('login-screen').style.display = 'flex';
-  $('login-pass').value = '';
-  $('login-error').style.display = 'none';
-  App.user = null;
+  try { 
+    await api('api/auth.php?action=logout', 'POST'); 
+    // Clear temp session data
+    sessionStorage.clear();
+  } catch {}
+  window.location.href = 'role-select.php';  // Always go to role selector
 }
 
 async function loadNotifications() {
   try {
     const data = await api('api/notifications.php');
     const badge = $('notif-badge');
-    const count = data.unread_count;
+    const count = data.unread_count || 0;
     if (badge) {
-      badge.textContent = count;
+      badge.textContent = count > 99 ? '99+' : count;
       badge.style.display = count > 0 ? 'block' : 'none';
     }
-    App.notifications = data.notifications;
+    App.notifications = data.notifications || [];
   } catch (err) {
-    console.error('Notifications load failed', err);
+    console.error('Notifications load failed:', err);
+    // Hide badge on error
+    const badge = $('notif-badge');
+    if (badge) badge.style.display = 'none';
   }
 }
 
@@ -290,13 +308,28 @@ function showApp() {
   }, 10000); // 10s poll
 }
 
+function hasPermission(permission) {
+  return App.user && App.user.permissions && App.user.permissions.includes(permission);
+}
+
 function updateRoleUI() {
-  const role = App.user.role;
+  // Permissions-based UI
   const adminOnly = qsa('.admin-only');
   const managerOnly = qsa('.manager-staff-only');
   
-  adminOnly.forEach(el => el.style.display = role === 'admin' ? '' : 'none');
-  managerOnly.forEach(el => el.style.display = ['admin','manager'].includes(role) ? '' : 'none');
+  adminOnly.forEach(el => el.style.display = hasPermission('user.read.all') ? '' : 'none');
+  managerOnly.forEach(el => el.style.display = hasRole(['admin', 'manager']) ? '' : 'none');
+  
+  // Hide delete buttons if no delete perms
+  qsa('.delete-btn').forEach(btn => {
+    btn.style.display = hasPermission('order.delete') || hasPermission('customer.delete') || hasPermission('product.delete') ? '' : 'none';
+  });
+  
+  // New Order button - requires create perms
+  const newOrderBtns = qsa('[onclick*="NewOrder"], [onclick*="openNewOrderForm"]');
+  newOrderBtns.forEach(btn => {
+    btn.style.display = hasPermission('order.create') ? '' : 'none';
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -1219,6 +1252,34 @@ function exportOrders() {
   window.open(`api/export.php?${params}`, '_blank');
 }
 
+// ── User Dropdown & Role Switch ──────────────────────────
+function toggleUserDropdown() {
+  const dropdown = $('user-dropdown');
+  dropdown.classList.toggle('open');
+}
+
+function switchRole(role) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Switching…';
+  
+  api('api/auth.php?action=switch-role', 'POST', { role })
+    .then(data => {
+      App.user.role = data.user.role;
+      updateRoleUI();
+      toast('success', 'Role switched', data.message);
+      $('user-role-text').textContent = data.user.role.toUpperCase();
+    })
+    .catch(err => {
+      toast('error', 'Switch failed', err.data?.error || 'Try again');
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = btn.textContent.replace('Switching…', role === 'manager' ? 'Switch to Manager View' : 'Switch to Staff View');
+      toggleUserDropdown();  // Close dropdown
+    });
+}
+
 // ── Theme & UI Utils ─────────────────────────────────────
 function toggleTheme() {
   document.documentElement.classList.toggle('light');
@@ -1268,13 +1329,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (savedTheme === 'light') document.documentElement.classList.add('light');
   updateThemeIcon();
 
-  // Check existing session
+  // Load notifications immediately for badge (works even if unauthenticated - hides on 401)
+  loadNotifications();
+
+  // Check existing session - graceful 401 handling
   try {
     const data = await api('api/auth.php?action=me');
     App.user = data.user;
     App.csrf = data.csrf;
     showApp();
-  } catch {
+  } catch (err) {
+    if (err.status === 401) {
+      console.log('No active session - showing login');
+    } else {
+      console.error('Session check failed:', err);
+    }
     $('login-screen').style.display = 'flex';
   }
 
