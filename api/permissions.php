@@ -30,6 +30,10 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST' && $userId) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     // Assign perms to user (admin only)
     if (!hasPermission('user.update')) {
         jsonResp(['error' => 'Insufficient permissions'], 403);

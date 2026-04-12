@@ -33,6 +33,10 @@ async function api(path, method = 'GET', body = null) {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
   };
+  // Add CSRF token for non-GET requests
+  if (method !== 'GET' && App.csrf) {
+    opts.headers['X-CSRF-Token'] = App.csrf;
+  }
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
   const data = await res.json();
@@ -41,7 +45,17 @@ async function api(path, method = 'GET', body = null) {
 }
 
 // ── Toast Notifications ───────────────────────────────────
-function toast(type, title, msg = '', duration = 4000) {
+function showToast(type, title, msg = '', duration = null) {
+  // Default durations by type
+  const defaultDurations = {
+    success: 4000,
+    error: 6000,
+    warning: 6000,
+    info: 4000
+  };
+  
+  duration = duration !== null ? duration : (defaultDurations[type] || 4000);
+  
   const icons = {
     success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
     error:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
@@ -49,23 +63,39 @@ function toast(type, title, msg = '', duration = 4000) {
     info:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
   };
   
-  // Enhanced toast with better positioning and animation
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `
-    <div class="toast-icon">${icons[type]}</div>
-    <div class="toast-body">
-      <div class="toast-title">${title}</div>
-      ${msg ? `<div class="toast-msg">${msg}</div>` : ''}
-    </div>
-  `;
-  $('toast-container').appendChild(el);
   
-  // Auto remove with smooth fade
+  // Format message to show count > 99 as "99+"
+  let formattedMsg = msg;
+  
+  el.innerHTML = `
+    <div class="toast-content">
+      <div class="toast-icon">${icons[type]}</div>
+      <div class="toast-body">
+        <div class="toast-title">${title}</div>
+        ${msg ? `<div class="toast-msg">${formattedMsg}</div>` : ''}
+      </div>
+      <button class="toast-close" onclick="this.closest('.toast').remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:2px;margin-left:12px;">×</button>
+    </div>
+    <div class="toast-progress" style="animation: toastProgress ${duration}ms linear forwards;"></div>
+  `;
+  
+  const container = $('toast-container');
+  container.appendChild(el);
+  
+  // Auto remove after duration
   setTimeout(() => {
-    el.classList.add('fade-out');
-    setTimeout(() => el.remove(), 300);
+    if (el.parentNode) {
+      el.classList.add('fade-out');
+      setTimeout(() => el.remove(), 300);
+    }
   }, duration);
+}
+
+// Backward compatibility alias
+function toast(type, title, msg = '', duration = 4000) {
+  showToast(type, title, msg, duration);
 }
 
 // ── Modal ─────────────────────────────────────────────────
@@ -180,15 +210,16 @@ async function login(e) {
     const data = await api('api/auth.php?action=login', 'POST', {
       email:    $('login-email').value.trim(),
       password: $('login-pass').value,
+      role_hint: window.roleHint,
     });
     App.user = data.user;
     App.csrf = data.csrf;
     showApp();
-    toast('success', 'Welcome back!', `Signed in as ${App.user.role.toUpperCase()}`);
+    showToast('success', `Welcome back, ${App.user.name}!`, `Signed in as ${App.user.role.toUpperCase()}`);
   } catch (err) {
     $('login-error').textContent = err.data?.error || 'Login failed. Check your credentials.';
     $('login-error').style.display = 'block';
-    toast('error', 'Login Failed', err.data?.error || 'Check credentials');
+    showToast('error', 'Login Failed', err.data?.error || 'Check credentials');
     btn.disabled = false;
     btn.textContent = 'Sign In';
   }
@@ -196,11 +227,17 @@ async function login(e) {
 
 async function logout() {
   try { 
-    await api('api/auth.php?action=logout', 'POST'); 
+    const response = await api('api/auth.php?action=logout', 'POST'); 
+    showToast('info', 'Signed Out', 'See you next time!');
     // Clear temp session data
     sessionStorage.clear();
-  } catch {}
-  window.location.href = 'role-select.php';  // Always go to role selector
+    // Redirect to role-select
+    setTimeout(() => {
+      window.location.href = response.redirect || 'role-select.php';
+    }, 800);
+  } catch (err) {
+    showToast('error', 'Logout Failed', 'Please refresh the page');
+  }
 }
 
 // Moved to showApp() after auth
@@ -781,11 +818,11 @@ async function deleteOrder(id, num) {
     [{ label: 'Delete', class: 'btn-danger', action: async () => {
       try {
         await api(`api/orders.php?id=${id}`, 'DELETE');
-        toast('success', 'Order deleted');
+        showToast('warning', 'Order Deleted', 'Order moved to trash');
         loadOrders(App.ordersPage);
         loadDashboard();
       } catch (err) {
-        toast('error', 'Failed to delete', err.message);
+        showToast('error', 'Failed to delete', err.message);
       }
     }}]
   );
@@ -989,10 +1026,10 @@ async function submitOrderForm() {
   const customerName = ($('of-customer-name')?.value || '').trim();
 
   if (!customerName && (!customerId || customerId === '__new__')) {
-    toast('warning', 'Customer name required'); return;
+    showToast('warning', 'Customer name required'); return;
   }
-  if (!orderItems.length) { toast('warning', 'Add at least one item'); return; }
-  if (orderItems.some(i => !i.product_name)) { toast('warning', 'All items need a name'); return; }
+  if (!orderItems.length) { showToast('warning', 'Add at least one item'); return; }
+  if (orderItems.some(i => !i.product_name)) { showToast('warning', 'All items need a name'); return; }
 
   const payload = {
     customer_id:     (customerId && customerId !== '__new__') ? customerId : null,
@@ -1014,23 +1051,29 @@ async function submitOrderForm() {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
   try {
-    await api(endpoint, method, payload);
-    toast('success', isEdit ? 'Order updated!' : 'Order created!');
+    const response = await api(endpoint, method, payload);
+    if (isEdit) {
+      showToast('success', 'Order Updated', 'Changes saved successfully');
+    } else {
+      const total = fmtCurrency(payload.items.reduce((s, i) => s + i.line_total, 0));
+      showToast('success', `Order Created`, `New order created successfully`);
+    }
     closePanel();
     loadOrders(App.ordersPage);
     loadDashboard();
   } catch (err) {
     if (err.data?.require_force) {
+      showToast('warning', 'Duplicate Detected', `A similar order exists: ${err.data.duplicate.order_number}`);
       showModal('Duplicate Detected', `
         <p>A recent order for this customer exists: <strong>${err.data.duplicate.order_number}</strong>.</p>
         <p style="margin-top:8px;color:var(--text-muted)">Do you want to create another order anyway?</p>
       `, [{ label: 'Create Anyway', action: async () => {
         await api(endpoint, method, { ...payload, force: true });
-        toast('success', 'Order created!');
+        showToast('success', 'Order Created', 'Duplicate was created successfully');
         closePanel(); loadOrders(); loadDashboard();
       }}]);
     } else {
-      toast('error', 'Failed to save order', err.message);
+      showToast('error', 'Failed to save order', err.message);
     }
     if (btn) { btn.disabled = false; btn.textContent = isEdit ? 'Update Order' : 'Create Order'; }
   }
@@ -1359,12 +1402,28 @@ function toggleTheme() {
   updateThemeIcon();
 }
 
+
+
 function togglePassword() {
   const passInput = $('login-pass');
   const isVisible = passInput.type === 'text';
   passInput.type = isVisible ? 'password' : 'text';
-  qsa('.eye-toggle .eye-open, .eye-toggle .eye-closed').forEach(el => el.style.display = 'none');
-  qsa(isVisible ? '.eye-closed' : '.eye-open').forEach(el => el.style.display = '');
+  const toggle = passInput.parentNode.querySelector('.eye-toggle');
+  if (toggle) {
+    toggle.querySelector('.eye-open').style.display = isVisible ? 'none' : '';
+    toggle.querySelector('.eye-closed').style.display = isVisible ? '' : 'none';
+  }
+}
+
+function toggleEmailVisibility() {
+  const emailInput = $('login-email');
+  const isVisible = emailInput.type === 'text';
+  emailInput.type = isVisible ? 'email' : 'text';
+  const toggle = emailInput.parentNode.querySelector('.eye-toggle');
+  if (toggle) {
+    toggle.querySelector('.eye-open').style.display = isVisible ? 'none' : '';
+    toggle.querySelector('.eye-closed').style.display = isVisible ? '' : 'none';
+  }
 }
 
 function openAbout() {
@@ -1417,6 +1476,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Login form
   $('login-form').addEventListener('submit', login);
+  
+  // Auto-clear login error on input
+  $('login-email').addEventListener('input', () => {
+    $('login-error').style.display = 'none';
+  });
+  $('login-pass').addEventListener('input', () => {
+    $('login-error').style.display = 'none';
+  });
 
   // Nav items
   qsa('.nav-item[data-section]').forEach(item => {

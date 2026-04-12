@@ -2,14 +2,12 @@ CREATE DATABASE IF NOT EXISTS pdfhair_db CHARACTER SET utf8mb4 COLLATE utf8mb4_u
 USE pdfhair_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- create a new database user
-CREATE USER 'pdfhair_user'@'127.0.0.1' IDENTIFIED BY 'Pdfhair@12345';
-
--- grant privileges to the database
-GRANT ALL PRIVILEGES ON pdfhair_db.* TO 'pdfhair_user'@'127.0.0.1';
-
--- apply changes
-FLUSH PRIVILEGES;
+-- ⚠️  PRODUCTION: Create DB user manually with secure password
+-- CREATE USER 'pdfhair_user'@'127.0.0.1' IDENTIFIED BY 'your_secure_password';
+-- GRANT ALL PRIVILEGES ON pdfhair_db.* TO 'pdfhair_user'@'127.0.0.1';
+-- FLUSH PRIVILEGES;
+--
+-- Use .env DB_PASS instead
 
 -- users
 CREATE TABLE IF NOT EXISTS users (
@@ -112,7 +110,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     user_id    INT UNSIGNED NOT NULL,
     title      VARCHAR(120) NOT NULL,
     message    TEXT NOT NULL,
-    type       ENUM('login','logout','order_created','order_status','low_stock') NOT NULL,
+    type       ENUM('login','logout','order_created','order_status','low_stock','customer_created','product_created') NOT NULL,
     related_id INT UNSIGNED NULL,
     is_read    TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -140,9 +138,14 @@ CREATE TABLE IF NOT EXISTS user_permissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Index for better activity_log performance
+-- Note: ADD INDEX IF NOT EXISTS requires MySQL 8.0.14+. For older versions, these are safe to re-run or ignore errors.
+-- ALTER TABLE activity_log ADD INDEX IF NOT EXISTS idx_created_user (created_at, user_id);
+-- Alternatively, use this for all MySQL versions:
 ALTER TABLE activity_log ADD INDEX idx_created_user (created_at, user_id);
 
 -- Add missing columns for RBAC/soft deletes
+-- Note: ADD COLUMN IF NOT EXISTS requires MySQL 8.0.3+. These statements are safe on first run.
+-- On subsequent runs on MySQL < 8.0.3, they will fail - this is expected.
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS locked_by_manager TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD INDEX idx_locked (locked_by_manager);
@@ -155,28 +158,29 @@ ALTER TABLE customers ADD INDEX idx_deleted (deleted_at);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL;
 ALTER TABLE products ADD INDEX idx_deleted (deleted_at);
 
--- Sample data
-INSERT INTO notifications (user_id, title, message, type, related_id) VALUES
-(1, 'Welcome!', 'Welcome to PdfHair dashboard', 'login', NULL),
-(2, 'New login', 'Manager logged in', 'login', NULL);
+-- ⚠️  SAMPLE DATA (DEV ONLY) - Remove in production or create users manually via UI
+-- Default: admin@pdfhair.com / admin123 (CHANGE IMMEDIATELY after first login!)
+--
+-- To generate new hash: php -r "echo password_hash('newpass', PASSWORD_BCRYPT);"
 
-SELECT 'Schema updated successfully!' AS status;
-        
 INSERT INTO users (name, email, password_hash, role, is_active)
 VALUES ('System Admin', 'admin@pdfhair.com', '$2a$12$OLxQ0JTUkMcpwXy44JDexuW9GZID1sLEKeFnRSAaI3DxLv2Gp/mPa', 'admin', 1)
 ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash);
 
--- Insert manager user
 INSERT INTO users (name, email, password_hash, role, is_active)
 VALUES ('Manager', 'manager@pdfhair.com', '$2a$12$7K7q/kwUbtc93X3C.FSa4umrddyT1XbvLaSbPDJCj69k6w3G8rDlG', 'manager', 1)
 ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash);
 
--- Insert staff user
 INSERT INTO users (name, email, password_hash, role, is_active)
 VALUES ('Staff', 'staff@pdfhair.com', '$2a$12$5kB4RHVdBQ1ZM.0mc7lQQuoO8fS5RkgVm3V9rSkMDkNlk5OoYH9cS', 'staff', 1)
 ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash);
 
--- Seed granular permissions
+-- Notifications (now after users exist)
+INSERT INTO notifications (user_id, title, message, type, related_id) VALUES
+(1, 'Welcome!', 'Welcome to PdfHair dashboard', 'login', NULL),
+(2, 'New login', 'Manager logged in', 'login', NULL) ON DUPLICATE KEY UPDATE message=message;
+
+-- Permissions (safe idempotent inserts)
 INSERT INTO permissions (name, description) VALUES
 ('order.create', 'Create new orders'),
 ('order.read.own', 'Read own created orders'),
@@ -211,26 +215,16 @@ INSERT INTO permissions (name, description) VALUES
 ('user.delete', 'Delete users')
 ON DUPLICATE KEY UPDATE description = VALUES(description);
 
--- Assign bundles
--- Admin (user_id=1): ALL permissions
+-- Assign role bundles (idempotent)
+INSERT IGNORE INTO user_permissions (user_id, permission_id) SELECT 1, id FROM permissions;
 INSERT IGNORE INTO user_permissions (user_id, permission_id)
-SELECT 1, id FROM permissions;
-
--- Manager (user_id=2): all except admin-only like delete/restore/user.*, override
+SELECT 2, p.id FROM permissions p WHERE p.name NOT REGEXP '^(order\\.(delete|restore|void|override)|customer\\.(delete|restore)|product\\.(delete|restore)|user\\.|dashboard\\.system\\.logs)$';
 INSERT IGNORE INTO user_permissions (user_id, permission_id)
-SELECT 2, p.id FROM permissions p 
-WHERE p.name NOT REGEXP '^(order\\.(delete|restore|void|override)|customer\\.(delete|restore)|product\\.(delete|restore)|user\\.|dashboard\\.system\\.logs)$';
-
--- Staff (user_id=3): limited create/search + dashboard read-only
-INSERT IGNORE INTO user_permissions (user_id, permission_id)
-SELECT 3, p.id FROM permissions p 
-WHERE p.name IN (
-    'order.create', 'order.read.own', 'order.update.own',
-    'customer.create', 'customer.read.search',
-    'product.create', 'product.read.search',
-    'dashboard.view.global'
+SELECT 3, p.id FROM permissions p WHERE p.name IN (
+  'order.create', 'order.read.own', 'order.update.own',
+  'customer.create', 'customer.read.search',
+  'product.create', 'product.read.search'
 );
 
-
-SELECT '✅ Users created successfully! Login: admin@pdfhair.com / admin123' AS status;
-SELECT id, name, email, role FROM users WHERE is_active=1;
+SELECT '✅ Schema ready! DEV LOGIN: admin@pdfhair.com / admin123 (CHANGE ASAP!) | Copy .env.example → .env & update DB_PASS' AS status;
+SELECT id, name, email, role FROM users WHERE is_active=1 ORDER BY role;

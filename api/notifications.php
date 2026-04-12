@@ -38,7 +38,7 @@ if ($method === 'POST' && $action === 'mark-read') {
         jsonResp(['error' => 'No notification IDs provided'], 422);
 
     $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-    $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1, created_at = NOW() WHERE id IN ($placeholders) AND user_id = ?");
+    $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id IN ($placeholders) AND user_id = ?");
     $stmt->execute(array_merge($ids, [$user['id']]));
 
     jsonResp(['success' => true, 'marked' => $stmt->rowCount()]);

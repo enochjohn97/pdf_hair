@@ -7,7 +7,7 @@ require_once __DIR__ . '/../config/helpers.php';
 
 $user = requireAuth();
 $userId = $user['id'];
-$global = hasPermission('dashboard.view.global');
+$global = hasPermission('dashboard.view.global') && !hasRole(['staff']);
 
 try {
     $pdo = db();

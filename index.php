@@ -2,17 +2,24 @@
 require_once __DIR__ . '/config/helpers.php';
 bootSession();
 
-// Make role-select.php the first page ALWAYS
-if (empty($_GET['role'])) {
-  header('Location: role-select.php');
-  exit;
+// If already logged in, allow through
+if (!empty($_SESSION['user_id'])) {
+    $roleHint = $_SESSION['user_role'] ?? 'staff';
+    $isLoggedIn = true;
+} elseif (empty($_GET['role'])) {
+    // Not logged in and no role selected
+    header('Location: role-select.php');
+    exit;
+} else {
+    // Not logged in but role selected
+    $roleHint = $_GET['role'] ?? 'staff';
+    $isLoggedIn = false;
 }
-$roleHint = $_GET['role'] ?? ($_POST['role'] ?? 'staff');
 
 // Handle direct login from role-select.php
-if ($_POST['action'] === 'login') {
-  $_SESSION['temp_role'] = $roleHint;
-  // Forward to auth API
+if (($_POST['action'] ?? '') === 'login') {
+  // Forward to auth API - role hint will be handled by auth.php
+  $_POST['role_hint'] = $roleHint;
   $_POST['action'] = 'login';
   include 'api/auth.php';
   exit;
@@ -26,8 +33,8 @@ if ($_POST['action'] === 'login') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Pdf_Hair — Professional Order Management System">
-  <title>Pdf_Hair — Order Management</title>
+  <meta name="description" content="PdfHair — Professional Order Management System">
+  <title>PdfHair — Order Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
@@ -85,22 +92,31 @@ if ($_POST['action'] === 'login') {
   <!-- ══════════════════════════════════════════════════════
      LOGIN SCREEN
      ══════════════════════════════════════════════════════ -->
-  <div id="login-screen" style="display:none">
+  <div id="login-screen" style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>">
     <div class="login-card">
       <div class="login-logo">PDF<span>HAIR</span></div>
       <p class="login-sub">Sign in to your workspace</p>
+      
+      <?php
+      $roleEmoji = ['admin' => '👑', 'manager' => '📊', 'staff' => '🛒'];
+      $roleEmoji = $roleEmoji[$roleHint] ?? '👤';
+      $roleLabel = ucfirst($roleHint);
+      ?>
+      <div class="role-pill role-<?= $roleHint ?>">
+        <?= $roleEmoji ?> Signing in as <?= $roleLabel ?>
+      </div>
 
       <div id="login-error"
-        style="display:none;background:var(--red-bg);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:12px 16px;font-size:.875rem;color:var(--red);margin-bottom:20px">
+        style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>;background:var(--red-bg);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:12px 16px;font-size:.875rem;color:var(--red);margin-bottom:20px">
       </div>
 
       <form id="login-form">
         <div class="form-group">
           <label>Email Address</label>
-          <div class="input-group login-icon-right">
+          <div class="input-group">
             <input type="email" id="login-email" placeholder="me@company.com" autocomplete="username" required>
             <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2">
+              stroke-width="2" style="pointer-events:none">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <polyline points="22,6 12,13 2,6" />
             </svg>
@@ -116,17 +132,21 @@ if ($_POST['action'] === 'login') {
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
-              <svg class="eye-open" style="display:none" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              <svg class="eye-open" style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>" width="18" height="18" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2">
-                <path
-                  d="M2 4.927c-.844.838-1.604 1.766-2.272 2.772C.57 8.689 0 9.999 0 12s.57 3.311 1.728 4.301.956 2.013 2.272 2.772.964.468 1.702.732 1.326.397 2.092.66c1.775.29 3.617.535 5.517.72 1.9.185 3.775.294 5.602.32 1.827.026 3.68-.085 5.498-.32 1.44-.266 2.64-.808 3.568-1.58.928-.772 1.544-1.834 1.8-3.15.218-.112.426-.225.623-.338.197-.113.426-.225.623-.338a13.39 13.39 0 0 1 1.727-1.247C21.957 12.991 22 12.499 22 12c0-.501-.043-.991-.127-1.479a13.39 13.39 0 0 1-1.727-1.247c-.197-.113-.426-.225-.623-.338-.218-.112.426-.225-.8-.338-.256-.316-.928-.772-1.8-1.58-.928-.266-3.058-.054-5.498-.32-1.827-.185-3.775-.294-5.517-.72-1.44-.266-2.092-.66-3.568-1.58Z" />
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
+                <line x1="1" y1="1" x2="23" y2="23" stroke-linecap="round" />
               </svg>
             </button>
           </div>
         </div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="login-btn">Sign In</button>
       </form>
+      
+      <div style="text-align:center;margin-top:20px;">
+        <a href="role-select.php" style="font-size:0.85rem;color:var(--text-muted);text-decoration:none;border-bottom:1px solid var(--text-muted);opacity:0.7;hover:opacity:1;">← Back to role select</a>
+      </div>
 
     </div>
   </div>
@@ -134,7 +154,7 @@ if ($_POST['action'] === 'login') {
   <!-- ══════════════════════════════════════════════════════
      MAIN APP
      ══════════════════════════════════════════════════════ -->
-  <div id="app" style="display:none">
+  <div id="app" style="display:<?= $isLoggedIn ? 'block' : 'none' ?>">
 
     <!-- SIDEBAR ──────────────────────────────────────────── -->
     <aside class="sidebar" id="sidebar">
@@ -165,7 +185,7 @@ if ($_POST['action'] === 'login') {
             <polyline points="10 9 9 9 8 9" />
           </svg>
           <span>Orders</span>
-          <span class="nav-badge" id="orders-badge" style="display:none">0</span>
+          <span class="nav-badge" id="orders-badge" style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>">0</span>
         </div>
 
         <div class="nav-item" data-section="section-customers">
@@ -239,7 +259,7 @@ if ($_POST['action'] === 'login') {
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
-            <span id="notif-badge" class="notif-badge" style="display:none">0</span>
+            <span id="notif-badge" class="notif-badge" style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>">0</span>
           </button>
           <button id="theme-toggle" class="btn btn-icon" title="Toggle theme" onclick="toggleTheme()">
             <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -288,7 +308,7 @@ if ($_POST['action'] === 'login') {
           </div>
 
           <!-- Low Stock Alert -->
-          <div class="alert-bar" id="low-stock-alert" style="display:none"></div>
+          <div class="alert-bar" id="low-stock-alert" style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>"></div>
 
           <!-- Stat Cards -->
           <div class="stats-grid">
@@ -581,7 +601,7 @@ if ($_POST['action'] === 'login') {
       <!-- Footer -->
       <footer
         style="padding:16px 32px;border-top:1px solid var(--border);font-size:.75rem;color:var(--text-muted);display:flex;justify-content:space-between">
-        <span>Pdf_Hair v1.0 — Built for your business</span>
+        <span>PdfHair v1.0 — Built for your business</span>
         <span>Keyboard: <kbd
             style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">Ctrl+N</kbd>
           New Order · <kbd

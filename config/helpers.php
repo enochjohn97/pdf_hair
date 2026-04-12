@@ -10,9 +10,9 @@ function bootSession(): void
         session_set_cookie_params([
             'lifetime' => 86400 * 7,
             'path' => '/',
-            'secure' => false,       // set TRUE on HTTPS
+            'secure' => filter_var($_ENV['SESSION_SECURE'] ?? getenv('SESSION_SECURE') ?? 'true', FILTER_VALIDATE_BOOLEAN),
             'httponly' => true,
-            'samesite' => 'Lax',     // Changed to Lax for better compatibility
+            'samesite' => 'Lax',
         ]);
         session_start();
 
@@ -49,12 +49,18 @@ function currentUser(): ?array
         $_SESSION['permissions'] = getUserPermissions($_SESSION['user_id']);
     }
 
+    // If temp_role is active, use temp_permissions instead
+    $permissions = $_SESSION['permissions'];
+    if (!empty($_SESSION['temp_role']) && isset($_SESSION['temp_permissions'])) {
+        $permissions = $_SESSION['temp_permissions'];
+    }
+
     return [
         'id' => $_SESSION['user_id'],
         'name' => $_SESSION['user_name'],
         'email' => $_SESSION['user_email'],
         'role' => $role,
-        'permissions' => $_SESSION['permissions']
+        'permissions' => $permissions
     ];
 }
 
@@ -236,13 +242,4 @@ function canChangeStatus(array $order, string $newStatus): bool
     return false;
 }
 
-function applyStaffFilters(PDOStatement &$stmt, array &$params, ?int $userId = null): void
-{
-    if (!$userId)
-        $userId = currentUser()['id'] ?? 0;
-    if (hasRole(['staff'])) {
-        array_unshift($params, $userId);
-        $where = $stmt->queryString;
-        $stmt->queryString = str_replace('WHERE', 'WHERE created_by = ? AND', $where);
-    }
-}
+

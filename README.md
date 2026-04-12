@@ -20,18 +20,20 @@ Upload the entire `orderpro/` folder to your web server root (e.g., `/var/www/ht
 
 ### Step 3 — Install Database
 
-1. Visit: `http://yourdomain.com/orderpro/install.php`
-2. Click **"Install Now"**
-3. Installation creates all tables + default admin account
+```
+mysql -u root -p < config/schema.sql
+```
+
+✅ Tables created + sample data (dev only)
 
 ### Step 4 — Login
 
-- Visit: `http://localhost:8000/`
+- Visit: `http://localhost/orderpro/`
 - **Email:** `admin@pdfhair.com`
 - **Password:** `admin123`
-  **Manager:** `manager@pdfhair.com` / `manager123` ✅
+  **Manager:** `manager@pdfhair.com` / `manager123`
 
-**To reset:** Run `mysql ... < setup.sql` again or create new users.
+**⚠️ CHANGE PASSWORDS IMMEDIATELY after first login!**
 
 ### Step 5 — Secure Your Installation
 
@@ -123,14 +125,14 @@ orderpro/
 
 ---
 
-## 🔒 Production Checklist
+## 🔒 Production Checklist ✅
 
-- [ ] Delete `install.php`
-- [ ] Change default admin password immediately
-- [ ] Set `'secure' => true` in `config/helpers.php` (requires HTTPS)
-- [ ] Use a strong DB password
-- [ ] Place DB credentials in environment variables (not in code)
-- [ ] Enable HTTPS / SSL certificate
+- [x] No install.php (manual schema.sql)
+- [x] DB creds in `.env` (not hardcoded)
+- [x] SESSION_SECURE=true in `.env` (auto)
+- [ ] Delete sample users or change passwords
+- [ ] Enable HTTPS + SESSION_SECURE=true
+- [ ] `chmod 600 .env` + `.gitignore` it
 
 ---
 

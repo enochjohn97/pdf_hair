@@ -1,0 +1,28 @@
+# Environment
+.env
+
+# Logs
+*.log
+logs/
+
+# Temp
+*.tmp
+tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies (if any)
+node_modules/
+vendor/
+
+# Database dumps
+*.sql.gz
+*.dump
+

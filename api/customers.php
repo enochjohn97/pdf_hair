@@ -70,6 +70,10 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!hasPermission('customer.create')) {
         jsonResp(['error' => 'Insufficient permissions to create customers'], 403);
     }
@@ -103,6 +107,10 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!hasPermission('customer.update.all')) {
         jsonResp(['error' => 'Insufficient permissions to update customers'], 403);
     }
@@ -121,6 +129,10 @@ if ($method === 'PUT' && $id) {
 }
 
 if ($method === 'DELETE' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if ($user['role'] !== 'admin')
         jsonResp(['error' => 'Forbidden'], 403);
     $pdo->prepare('UPDATE customers SET deleted_at = NOW() WHERE id = ?')->execute([$id]);

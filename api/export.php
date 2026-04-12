@@ -27,6 +27,13 @@ switch ($type) {
 
         $where  = ['1=1'];
         $params = [];
+        
+        // Staff: only own orders
+        if (hasRole(['staff'])) {
+            $where[] = 'created_by = ?';
+            $params[] = $user['id'];
+        }
+        
         if (!empty($_GET['status']))    { $where[] = 'status = ?';            $params[] = $_GET['status']; }
         if (!empty($_GET['date_from'])) { $where[] = 'DATE(created_at) >= ?'; $params[] = $_GET['date_from']; }
         if (!empty($_GET['date_to']))   { $where[] = 'DATE(created_at) <= ?'; $params[] = $_GET['date_to']; }
@@ -48,6 +55,9 @@ switch ($type) {
         break;
 
     case 'customers':
+        if (hasRole(['staff'])) {
+            jsonResp(['error' => 'Insufficient permissions'], 403);
+        }
         header('Content-Disposition: attachment; filename="customers_' . date('Ymd_His') . '.csv"');
         $rows = $pdo->query(
             "SELECT c.name, c.email, c.phone, c.address,
@@ -61,6 +71,9 @@ switch ($type) {
         break;
 
     case 'products':
+        if (hasRole(['staff'])) {
+            jsonResp(['error' => 'Insufficient permissions'], 403);
+        }
         header('Content-Disposition: attachment; filename="products_' . date('Ymd_His') . '.csv"');
         $rows = $pdo->query(
             "SELECT name, description, price, stock_qty, unit, low_stock_alert,

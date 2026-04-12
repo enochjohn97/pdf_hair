@@ -43,6 +43,10 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!hasPermission('user.create')) {
         jsonResp(['error' => 'Create permissions required'], 403);
     }
@@ -58,6 +62,10 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!hasPermission('user.update')) {
         jsonResp(['error' => 'Update permissions required'], 403);
     }
@@ -66,6 +74,10 @@ if ($method === 'PUT' && $id) {
 }
 
 if ($method === 'DELETE' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!hasPermission('user.delete')) {
         jsonResp(['error' => 'Delete permissions required'], 403);
     }

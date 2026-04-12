@@ -132,6 +132,10 @@ if ($method === 'GET') {
 
 // ── POST — Create ─────────────────────────────────────────
 if ($method === 'POST') {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     $data = body();
     $items = $data['items'] ?? [];
 
@@ -243,6 +247,10 @@ if ($method === 'POST') {
 
 // ── PUT — Update ──────────────────────────────────────────
 if ($method === 'PUT' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     $data = body();
 
     $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL');
@@ -328,6 +336,10 @@ if ($method === 'PUT' && $id) {
 
 // ── PATCH — Status Update ─────────────────────────────────
 if ($method === 'PATCH' && $id && $action === 'status') {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     $data = body();
     $status = $data['status'] ?? '';
     $validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
@@ -353,7 +365,7 @@ if ($method === 'PATCH' && $id && $action === 'status') {
     }
     $setClause = 'status = ?, ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys(array_diff_key($updates, ['status' => 0]))));
     $pdo->prepare("UPDATE orders SET $setClause, updated_at = NOW() WHERE id = ?")
-        ->execute(array_values($updates) + [$id]);
+        ->execute(array_merge(array_values($updates), [$id]));
 
     logActivity(
         $user['id'],
@@ -368,6 +380,10 @@ if ($method === 'PATCH' && $id && $action === 'status') {
 
 // ── DELETE ────────────────────────────────────────────────
 if ($method === 'DELETE' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!canDelete('order')) {
         jsonResp(['error' => 'Forbidden'], 403);
     }

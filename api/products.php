@@ -54,6 +54,10 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!hasPermission('product.create')) {
         jsonResp(['error' => 'Insufficient permissions to create products'], 403);
     }
@@ -92,6 +96,13 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
+    if (!hasPermission('product.update.all')) {
+        jsonResp(['error' => 'Insufficient permissions to update products'], 403);
+    }
     $data = body();
     $pdo->prepare(
         'UPDATE products SET name=?, description=?, price=?, stock_qty=?, unit=?,
@@ -110,6 +121,10 @@ if ($method === 'PUT' && $id) {
 }
 
 if ($method === 'DELETE' && $id) {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!validateCsrf($token)) {
+        jsonResp(['error' => 'Invalid security token'], 403);
+    }
     if (!canDelete('product')) {
         jsonResp(['error' => 'Insufficient permissions'], 403);
     }

@@ -110,6 +110,173 @@ img { max-width: 100%; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
 /* ════════════════════════════════════════════════════════
+   ROLE SELECTOR PAGE
+   ════════════════════════════════════════════════════════ */
+.role-selector-page {
+  font-family: 'Outfit', sans-serif;
+  background: linear-gradient(135deg, #080c18 0%, #1a1f2e 50%, #0f1422 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #e8edf5;
+  padding: 2rem;
+}
+
+.role-selector-page .logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  background: linear-gradient(135deg, #f0a500, #ffc533);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.role-selector-page .logo span {
+  color: #e8edf5;
+}
+
+.role-selector-page .subtitle {
+  font-size: 1.1rem;
+  color: #8a96aa;
+  text-align: center;
+  margin-bottom: 3rem;
+  max-width: 400px;
+}
+
+.role-selector-page .role-grid {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+  flex-wrap: wrap;
+}
+
+.role-selector-page .role-card.selected {
+  transform: scale(1.02);
+  border-color: #f0a500 !important;
+  box-shadow: 0 20px 40px rgba(240, 165, 0, .25);
+}
+
+.role-selector-page .role-card.selected::before {
+  transform: scaleX(1);
+  background: #f0a500;
+}
+
+.role-selector-page .role-card {
+  flex: 0 0 300px;
+  height: 280px;
+  background: rgba(20, 28, 46, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.role-selector-page .role-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f0a500, #3b82f6);
+  transform: scaleX(0);
+  transition: transform .3s ease;
+}
+
+.role-selector-page .role-card:hover {
+  transform: translateY(-12px);
+  border-color: rgba(240, 165, 0, 0.3);
+  box-shadow: 0 32px 64px rgba(240, 165, 0, 0.15);
+}
+
+.role-selector-page .role-card:hover::before {
+  transform: scaleX(1);
+}
+
+.role-selector-page .role-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+}
+
+.role-selector-page .admin .role-icon {
+  background: linear-gradient(135deg, rgba(240, 165, 0, 0.3), rgba(240, 165, 0, 0.1));
+}
+
+.role-selector-page .manager .role-icon {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.1));
+}
+
+.role-selector-page .staff .role-icon {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(34, 197, 94, 0.1));
+}
+
+.role-selector-page .role-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  margin-bottom: .5rem;
+  background: linear-gradient(135deg, #f0a500, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.role-selector-page .role-desc {
+  color: #8a96aa;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.role-selector-page .role-desc small {
+  font-size: .75rem;
+  opacity: .8;
+  display: block;
+  margin-top: .5rem;
+}
+
+.role-selector-page #role-login-form {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .role-selector-page .role-grid {
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+
+  .role-selector-page .role-card {
+    flex: 1 1 280px;
+  }
+}
+
+@media (max-width: 640px) {
+  .role-selector-page .role-grid {
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
    AUTH / LOGIN
    ════════════════════════════════════════════════════════ */
 #login-screen {
@@ -142,7 +309,23 @@ img { max-width: 100%; }
   line-height: 1;
 }
 .login-logo span { color: var(--text); }
-.login-sub { color: var(--text-muted); font-size: .9rem; margin-bottom: 36px; }
+.login-sub { color: var(--text-muted); font-size: .9rem; margin-bottom: 20px; text-align: center; }
+.role-pill {
+  display: inline-block;
+  background: var(--gold-bg);
+  border: 1px solid var(--gold-light);
+  color: var(--gold-light);
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 24px;
+  width: 100%;
+}
+.role-pill.role-admin { background: var(--gold-bg); border-color: var(--gold-light); color: var(--gold-light); }
+.role-pill.role-manager { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+.role-pill.role-staff { background: var(--green-bg); border-color: var(--green); color: var(--green); }
 
 /* ── Form Elements ──────────────────────────────────────── */
 .form-group { margin-bottom: 20px; }
@@ -257,7 +440,7 @@ img { max-width: 100%; }
 .btn-lg { padding: 14px 28px; font-size: 1rem; }
 .btn-full { width: 100%; justify-content: center; }
 .btn:disabled { opacity: .45; pointer-events: none; }
-.btn-icon { padding: 8px; border-radius: var(--radius-sm); }
+.btn-icon { padding: 8px; border-radius: var(--radius-sm); position: relative; }
 
 /* ════════════════════════════════════════════════════════
    APP SHELL
@@ -970,13 +1153,17 @@ tr:hover td { background: rgba(255,255,255,.02); }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 14px 18px;
-  display: flex; align-items: flex-start; gap: 10px;
-  min-width: 280px; max-width: 360px;
+  display: flex; flex-direction: column;
+  min-width: 300px; max-width: 420px;
   box-shadow: var(--shadow);
   pointer-events: auto;
   animation: slideInRight .3s cubic-bezier(.4,0,.2,1) both;
   border-left: 3px solid;
   font-size: .875rem;
+  overflow: hidden;
+}
+.toast-content {
+  display: flex; align-items: flex-start; gap: 10px;
 }
 .toast.success { border-left-color: var(--green); }
 .toast.error   { border-left-color: var(--red); }
@@ -990,6 +1177,12 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .toast-body { flex: 1; }
 .toast-title { font-weight: 600; margin-bottom: 2px; }
 .toast-msg { color: var(--text-mid); font-size: .8rem; }
+.toast-progress {
+  height: 2px;
+  background: currentColor;
+  opacity: 0.5;
+  margin-top: 8px;
+}
 .toast.fade-out { animation: fadeOut .3s forwards; }
 
 /* ════════════════════════════════════════════════════════
@@ -1123,6 +1316,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
 }
 @keyframes fadeOut {
   to { opacity: 0; transform: translateX(30px); }
+}
+@keyframes toastProgress {
+  from { width: 100%; }
+  to   { width: 0%; }
 }
 @keyframes shimmer {
   from { background-position: 200% 0; }

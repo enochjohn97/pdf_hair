@@ -1,5 +1,14 @@
-<?php
+2<?php
 // Simple role selector - goes to login page with role hint
+require_once __DIR__ . '/config/helpers.php';
+bootSession();
+
+// Redirect if already authenticated
+if (!empty($_SESSION['user_id'])) {
+    $role = $_SESSION['user_role'] ?? 'staff';
+    header('Location: index.php?role=' . urlencode($role));
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -7,169 +16,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pdf_Hair — Select Role</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;700&display=swap"
-        rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Outfit', sans-serif;
-            background: linear-gradient(135deg, #080c18 0%, #1a1f2e 50%, #0f1422 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #e8edf5;
-            padding: 2rem;
-        }
-
-        .logo {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: clamp(2.5rem, 8vw, 4rem);
-            background: linear-gradient(135deg, #f0a500, #ffc533);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 1rem;
-            letter-spacing: 2px;
-            text-align: center;
-        }
-
-        .logo span {
-            color: #e8edf5;
-        }
-
-        .subtitle {
-            font-size: 1.1rem;
-            color: #8a96aa;
-            text-align: center;
-            margin-bottom: 3rem;
-            max-width: 400px;
-        }
-
-        .role-grid {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            width: 100%;
-            max-width: 1200px;
-            flex-wrap: wrap;
-        }
-
-        .role-card.selected {
-            transform: scale(1.02);
-            border-color: #f0a500 !important;
-            box-shadow: 0 20px 40px rgba(240, 165, 0, .25);
-        }
-
-        .role-card.selected::before {
-            transform: scaleX(1);
-            background: #f0a500;
-        }
-
-        .role-card {
-            flex: 0 0 300px;
-            height: 280px;
-            background: rgba(20, 28, 46, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 2.5rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .role-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #f0a500, #3b82f6);
-            transform: scaleX(0);
-            transition: transform .3s ease;
-        }
-
-        .role-card:hover {
-            transform: translateY(-12px);
-            border-color: rgba(240, 165, 0, 0.3);
-            box-shadow: 0 32px 64px rgba(240, 165, 0, 0.15);
-        }
-
-        .role-card:hover::before {
-            transform: scaleX(1);
-        }
-
-        .role-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 1.5rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-        }
-
-        .admin .role-icon {
-            background: linear-gradient(135deg, rgba(240, 165, 0, 0.3), rgba(240, 165, 0, 0.1));
-        }
-
-        .manager .role-icon {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.1));
-        }
-
-        .staff .role-icon {
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(34, 197, 94, 0.1));
-        }
-
-        .role-title {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 1.8rem;
-            margin-bottom: .5rem;
-            background: linear-gradient(135deg, #f0a500, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .role-desc {
-            color: #8a96aa;
-            font-size: 1rem;
-            line-height: 1.6;
-        }
-
-        @media (max-width: 1024px) {
-            .role-grid {
-                flex-wrap: wrap;
-                gap: 1.5rem;
-            }
-
-            .role-card {
-                flex: 1 1 280px;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .role-grid {
-                flex-direction: column;
-                align-items: center;
-                gap: 1.5rem;
-            }
-        }
-    </style>
+    <title>PdfHair — Select Role</title>
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 
 <body>
@@ -177,18 +25,18 @@
     <p class="subtitle">Select your role to continue</p>
 
     <div class="role-grid">
-        <div class="role-card admin" onclick="selectRole('admin')">
+        <div class="role-card admin" onclick="selectRole('admin', this)">
             <div class="role-icon">👑</div>
             <div class="role-title">Admin</div>
             <div class="role-desc">Full system access - manage users, orders, customers,
                 products<br><small>Click to use</small></div>
         </div>
-        <div class="role-card manager" onclick="selectRole('manager')">
+        <div class="role-card manager" onclick="selectRole('manager', this)">
             <div class="role-icon">📊</div>
             <div class="role-title">Manager</div>
             <div class="role-desc">Order management, reporting<br><small>Click to use</small></div>
         </div>
-        <div class="role-card staff" onclick="selectRole('staff')">
+        <div class="role-card staff" onclick="selectRole('staff', this)">
             <div class="role-icon">🛒</div>
             <div class="role-title">Staff</div>
             <div class="role-desc">Dashboard + own pending orders only<br><small>Click to use</small></div>
@@ -200,9 +48,14 @@
         <input type="hidden" id="role-input" name="role" value="">
     </form>
 
+    <!-- Footer -->
+    <div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);text-align:center;color:var(--text-muted);font-size:0.75rem;">
+        <div>v1.0 — Secure Login</div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            function selectRole(role) {
+            function selectRole(role, el) {
                 const input = document.getElementById('role-input');
                 const cards = document.querySelectorAll('.role-card');
 
@@ -213,7 +66,12 @@
 
                 // Visual feedback
                 cards.forEach(card => card.classList.remove('selected'));
-                event.currentTarget.classList.add('selected');
+                el.classList.add('selected');
+                
+                // Add loading indicator
+                el.style.opacity = '0.6';
+                const originalHTML = el.innerHTML;
+                el.innerHTML = '<div style="padding: 20px; text-align: center;">Loading...</div>';
 
                 // Set role and redirect
                 input.value = role;
@@ -224,6 +82,18 @@
 
             // Expose to onclick
             window.selectRole = selectRole;
+            
+            // Add keyboard navigation
+            document.querySelectorAll('.role-card').forEach((card, index) => {
+                card.tabIndex = 0;
+                card.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        const role = card.classList[1]; // admin, manager, staff
+                        selectRole(role, card);
+                    }
+                });
+            });
         });
     </script>
 
