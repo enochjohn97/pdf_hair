@@ -225,6 +225,15 @@ if ($method === 'POST') {
         $pdo->commit();
         logActivity($user['id'], 'created', 'order', $orderId, "Order $orderNum created");
 
+        // Notify admin/manager
+        $notifyStmt = $pdo->prepare("SELECT id FROM users WHERE role IN ('admin','manager') AND is_active=1");
+        $notifyStmt->execute();
+        $targets = array_column($notifyStmt->fetchAll(), 'id');
+        if (!empty($targets) && !in_array($user['id'], $targets)) {
+            $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, related_id) VALUES (?, ?, ?, ?, ?)")
+                ->execute([$targets[0], "New Order #$orderNum", "$customerName ordered ₦" . number_format($total, 2), 'order_created', $orderId]);
+        }
+
         jsonResp(['success' => true, 'id' => $orderId, 'order_number' => $orderNum], 201);
     } catch (Exception $e) {
         $pdo->rollBack();

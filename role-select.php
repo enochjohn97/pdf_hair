@@ -58,7 +58,19 @@
             justify-content: center;
             gap: 2rem;
             width: 100%;
-            max-width: 1000px;
+            max-width: 1200px;
+            flex-wrap: wrap;
+        }
+
+        .role-card.selected {
+            transform: scale(1.02);
+            border-color: #f0a500 !important;
+            box-shadow: 0 20px 40px rgba(240, 165, 0, .25);
+        }
+
+        .role-card.selected::before {
+            transform: scaleX(1);
+            background: #f0a500;
         }
 
         .role-card {
@@ -179,29 +191,39 @@
         <div class="role-card staff" onclick="selectRole('staff')">
             <div class="role-icon">🛒</div>
             <div class="role-title">Staff</div>
-            <div class="role-desc">Dashboard + own pending orders only<br><small>Click to use</small>
-            </div>
+            <div class="role-desc">Dashboard + own pending orders only<br><small>Click to use</small></div>
         </div>
     </div>
 
+    <!-- Hidden form for role param -->
+    <form id="role-login-form" method="GET" action="index.php">
+        <input type="hidden" id="role-input" name="role" value="">
+    </form>
+
     <script>
-        function selectRole(role) {
-            document.getElementById('role-input').value = role;
-            document.getElementById('role-display').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+        document.addEventListener('DOMContentLoaded', function () {
+            function selectRole(role) {
+                const input = document.getElementById('role-input');
+                const cards = document.querySelectorAll('.role-card');
 
-            // Visual feedback
-            document.querySelectorAll('.role-card').forEach(card => card.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
+                if (!input) {
+                    alert('Setup error');
+                    return;
+                }
 
-            // Auto-submit after 1s or Enter
-            setTimeout(() => document.getElementById('role-login-form').submit(), 1200);
-        }
+                // Visual feedback
+                cards.forEach(card => card.classList.remove('selected'));
+                event.currentTarget.classList.add('selected');
 
-        document.getElementById('role-login-form').addEventListener('submit', function (e) {
-            if (!document.getElementById('role-input').value) {
-                e.preventDefault();
-                alert('Please select a role first!');
+                // Set role and redirect
+                input.value = role;
+                setTimeout(() => {
+                    window.location.href = `index.php?role=${role}`;
+                }, 800);
             }
+
+            // Expose to onclick
+            window.selectRole = selectRole;
         });
     </script>
 
@@ -227,8 +249,12 @@
             display: block;
             margin-top: .5rem;
         }
-    </style>
 
+        /* Hide form */
+        #role-login-form {
+            display: none;
+        }
+    </style>
 </body>
 
 </html>

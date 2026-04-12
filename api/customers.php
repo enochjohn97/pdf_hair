@@ -37,16 +37,27 @@ if ($method === 'GET') {
         return;
     }
 
-    if ($search) {
-        $s = "%$search%";
+    // Dropdown mode for order forms (staff/manager can see more)
+    $isDropdown = !empty($_GET['dropdown']);
+    if ($isDropdown || $search) {
+        $s = $isDropdown ? '' : "%$search%";
         $stmt = $pdo->prepare(
             'SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
-             FROM customers c WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?
+             FROM customers c WHERE ' . ($isDropdown ? '1=1' : '(name LIKE ? OR email LIKE ? OR phone LIKE ?)') . '
              AND c.deleted_at IS NULL
              ORDER BY name LIMIT ? OFFSET ?'
         );
-        $stmt->execute([$s, $s, $s, $limit, $offset]);
+        if ($isDropdown) {
+            $stmt->execute([$limit, $offset]);
+        } else {
+            $stmt->execute([$s, $s, $s, $limit, $offset]);
+        }
     } else {
+        // Staff: require search unless dropdown
+        if (hasRole(['staff']) && !$isDropdown) {
+            jsonResp(['data' => [], 'total' => 0, 'message' => 'Search required for staff']);
+            return;
+        }
         $stmt = $pdo->prepare(
             'SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
              FROM customers c WHERE deleted_at IS NULL ORDER BY name LIMIT ? OFFSET ?'
@@ -77,7 +88,18 @@ if ($method === 'POST') {
         clean($data['address'] ?? ''),
         clean($data['notes'] ?? ''),
     ]);
-    jsonResp(['success' => true, 'id' => (int) $pdo->lastInsertId()], 201);
+    $newId = (int) $pdo->lastInsertId();
+
+    // Notify admin/manager
+    $notifyStmt = $pdo->prepare("SELECT id FROM users WHERE role IN ('admin','manager') AND is_active=1");
+    $notifyStmt->execute();
+    $targets = $notifyStmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($targets as $targetId) {
+        $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, related_id) VALUES (?, ?, ?, ?, ?)")
+            ->execute([$targetId, "New Customer: $name", "New customer created by " . $user['name'], 'customer_created', $newId]);
+    }
+
+    jsonResp(['success' => true, 'id' => $newId], 201);
 }
 
 if ($method === 'PUT' && $id) {

@@ -348,15 +348,12 @@ function updateRoleUI() {
   const dateTo = $('orders-date-to');
   const dateInputs = qsa('input[type="date"]');
   if (isStaffRole) {
-    if (dateTo) dateTo.style.display = 'none';
-    dateInputs.forEach(input => {
-      input.classList.add('staff-date-grey');
-      input.title = 'Staff view simplified';
-    });
-    App.ordersFilters.date_to = ''; // Clear filter
+    if (dateTo) dateTo.parentNode.style.display = 'none';
+    dateInputs.forEach(input => input.closest('.filter-select')?.remove() || input.classList.add('staff-date-grey'));
+    input.title = 'Staff: Pending orders only - simplified view';
+    App.ordersFilters.date_to = ''; 
   } else {
-    if (dateTo) dateTo.style.display = '';
-    dateInputs.forEach(input => input.classList.remove('staff-date-grey'));
+    // Normal view
   }
   
   // Permissions-based UI
@@ -814,8 +811,8 @@ async function editOrder(id) {
 
 async function renderOrderForm(order) {
   // Prefetch products and customers if not cached
-  if (!App.products.length) App.products = (await api('api/products.php?active=1')).data || [];
-  if (!App.customers.length) App.customers = (await api('api/customers.php?limit=200')).data || [];
+  if (!App.products.length) App.products = (await api('api/products.php?dropdown=1')).data || [];
+  if (!App.customers.length) App.customers = (await api('api/customers.php?dropdown=1&limit=200')).data || [];
 
   const isEdit = !!order;
   const title  = isEdit ? `Edit ${order.order_number}` : 'New Order';

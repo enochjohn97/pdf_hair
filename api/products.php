@@ -28,6 +28,16 @@ if ($method === 'GET') {
         return;
     }
 
+    $isDropdown = !empty($_GET['dropdown']);
+
+    // Dropdown mode for order forms
+    if ($isDropdown) {
+        $where[] = 'is_active = 1';
+    } else if (empty($search) && hasRole(['staff'])) {
+        jsonResp(['data' => []]);
+        return;
+    }
+
     if ($search) {
         $where[] = 'name LIKE ?';
         $params[] = "%$search%";
@@ -67,7 +77,18 @@ if ($method === 'POST') {
         max(0, (int) ($data['low_stock_alert'] ?? 5)),
         isset($data['is_active']) ? (int) $data['is_active'] : 1,
     ]);
-    jsonResp(['success' => true, 'id' => (int) $pdo->lastInsertId()], 201);
+    $newId = (int) $pdo->lastInsertId();
+
+    // Notify admin/manager/staff
+    $notifyStmt = $pdo->prepare("SELECT id FROM users WHERE role != 'admin' AND is_active=1"); // Managers + Staff
+    $notifyStmt->execute();
+    $targets = $notifyStmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($targets as $targetId) {
+        $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, related_id) VALUES (?, ?, ?, ?, ?)")
+            ->execute([$targetId, "New Product: $name", "New product added by " . $user['name'] . " - ₦" . number_format($data['price'], 2), 'product_created', $newId]);
+    }
+
+    jsonResp(['success' => true, 'id' => $newId], 201);
 }
 
 if ($method === 'PUT' && $id) {
