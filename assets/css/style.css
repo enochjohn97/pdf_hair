@@ -342,11 +342,12 @@ img { max-width: 100%; }
   position: relative;
 }
 .input-group input {
-  padding-left: 42px;
+  padding-left: 16px;
+  padding-right: 42px;
 }
 .input-icon {
   position: absolute;
-  left: 12px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   width: 18px;
@@ -379,7 +380,7 @@ img { max-width: 100%; }
   width: 18px;
   height: 18px;
 }
-.eye-toggle:hover .input-icon { color: var(--text); }
+.eye-toggle:hover svg { color: var(--gold); }
 
 /* Removed .login-icon-right - password icon deleted */
 
@@ -401,6 +402,7 @@ img { max-width: 100%; }
   font-size: .95rem;
   transition: border-color var(--transition), box-shadow var(--transition);
   outline: none;
+  background-image: none !important;
 }
 .form-group input:focus,
 .form-group select:focus,

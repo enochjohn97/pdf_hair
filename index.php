@@ -4,16 +4,16 @@ bootSession();
 
 // If already logged in, allow through
 if (!empty($_SESSION['user_id'])) {
-    $roleHint = $_SESSION['user_role'] ?? 'staff';
-    $isLoggedIn = true;
+  $roleHint = $_SESSION['user_role'] ?? 'staff';
+  $isLoggedIn = true;
 } elseif (empty($_GET['role'])) {
-    // Not logged in and no role selected
-    header('Location: role-select.php');
-    exit;
+  // Not logged in and no role selected
+  header('Location: role-select.php');
+  exit;
 } else {
-    // Not logged in but role selected
-    $roleHint = $_GET['role'] ?? 'staff';
-    $isLoggedIn = false;
+  // Not logged in but role selected
+  $roleHint = $_GET['role'] ?? 'staff';
+  $isLoggedIn = false;
 }
 
 // Handle direct login from role-select.php
@@ -96,7 +96,7 @@ if (($_POST['action'] ?? '') === 'login') {
     <div class="login-card">
       <div class="login-logo">PDF<span>HAIR</span></div>
       <p class="login-sub">Sign in to your workspace</p>
-      
+
       <?php
       $roleEmoji = ['admin' => '👑', 'manager' => '📊', 'staff' => '🛒'];
       $roleEmoji = $roleEmoji[$roleHint] ?? '👤';
@@ -106,17 +106,13 @@ if (($_POST['action'] ?? '') === 'login') {
         <?= $roleEmoji ?> Signing in as <?= $roleLabel ?>
       </div>
 
-      <div id="login-error"
-        style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>;background:var(--red-bg);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:12px 16px;font-size:.875rem;color:var(--red);margin-bottom:20px">
-      </div>
-
       <form id="login-form">
         <div class="form-group">
           <label>Email Address</label>
           <div class="input-group">
             <input type="email" id="login-email" placeholder="me@company.com" autocomplete="username" required>
             <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" style="pointer-events:none">
+              stroke-width="2">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <polyline points="22,6 12,13 2,6" />
             </svg>
@@ -132,8 +128,8 @@ if (($_POST['action'] ?? '') === 'login') {
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
-              <svg class="eye-open" style="display:<?= $isLoggedIn ? 'none' : 'flex' ?>" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2">
+              <svg class="eye-open" style="display:none" width="18" height="18"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
                 <line x1="1" y1="1" x2="23" y2="23" stroke-linecap="round" />
@@ -143,9 +139,11 @@ if (($_POST['action'] ?? '') === 'login') {
         </div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="login-btn">Sign In</button>
       </form>
-      
+
       <div style="text-align:center;margin-top:20px;">
-        <a href="role-select.php" style="font-size:0.85rem;color:var(--text-muted);text-decoration:none;border-bottom:1px solid var(--text-muted);opacity:0.7;hover:opacity:1;">← Back to role select</a>
+        <a href="role-select.php"
+          style="font-size:0.85rem;color:var(--text-muted);text-decoration:none;border-bottom:1px solid var(--text-muted);opacity:0.7;hover:opacity:1;">←
+          Back to role select</a>
       </div>
 
     </div>

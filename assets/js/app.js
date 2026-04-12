@@ -1410,8 +1410,8 @@ function togglePassword() {
   passInput.type = isVisible ? 'password' : 'text';
   const toggle = passInput.parentNode.querySelector('.eye-toggle');
   if (toggle) {
-    toggle.querySelector('.eye-open').style.display = isVisible ? 'none' : '';
-    toggle.querySelector('.eye-closed').style.display = isVisible ? '' : 'none';
+    toggle.querySelector('.eye-open').style.display = isVisible ? 'none' : 'flex';
+    toggle.querySelector('.eye-closed').style.display = isVisible ? 'flex' : 'none';
   }
 }
 
