@@ -1,0 +1,32 @@
+<parameter name="content"># TODO.md - OrderPro Fixes Implementation
+
+Current working directory: `/home/mein/Documents/orderpro`
+
+## Approved Plan Progress
+✅ **Plan approved** - Implementing fixes for role flow, 401 errors, staff restrictions, UI polish
+
+## Implementation Steps (8 total)
+
+### Phase 1: Role Flow Fix [3 steps]
+- [ ] **1.1** Create TODO.md ✅ **Done**
+- [ ] **1.2** Update `index.php`: Redirect to role-select.php if no role param
+- [ ] **1.3** Update `role-select.php`: Add role-prefilled login forms + POST to index.php
+
+### Phase 2: Fix 401 Errors [1 step]
+- [ ] **2.1** Update `assets/js/app.js`: Move notifications to post-auth, wrap pre-auth calls
+
+### Phase 3: Staff Restrictions [3 steps]
+- [ ] **3.1** Update `assets/js/app.js`: Hide customers/products nav for staff, restrict order edit
+- [ ] **3.2** Update `api/orders.php`: Enforce staff=pending+own only  
+- [ ] **3.3** Add staff-friendly messages in JS UI
+
+### Phase 4: UI Polish [1 step]
+- [ ] **4.1** Update `assets/css/style.css`: Fix login icon overlap
+
+### Phase 5: Testing & Completion [0/1]
+- [ ] **5.1** Test all roles + attempt_completion
+
+**Progress: 1/8 steps complete (12%)**
+
+**Next Action**: Edit `index.php` for role flow redirect.
+</parameter>

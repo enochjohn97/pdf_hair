@@ -203,7 +203,10 @@ async function logout() {
   window.location.href = 'role-select.php';  // Always go to role selector
 }
 
+// Moved to showApp() after auth
 async function loadNotifications() {
+  if (!App.user) return; // Only after login
+  
   try {
     const data = await api('api/notifications.php');
     const badge = $('notif-badge');
@@ -215,11 +218,11 @@ async function loadNotifications() {
     App.notifications = data.notifications || [];
   } catch (err) {
     console.error('Notifications load failed:', err);
-    // Hide badge on error
     const badge = $('notif-badge');
     if (badge) badge.style.display = 'none';
   }
 }
+
 
 function toggleNotifications() {
   const dropdown = $('notifications-dropdown');
@@ -296,7 +299,7 @@ function showApp() {
   $('user-name-text').textContent   = App.user.name;
   $('user-role-text').textContent   = App.user.role.toUpperCase();
   navigate('section-dashboard');
-  loadNotifications();
+  loadNotifications(); // Now safe - user authenticated
   
   // Role-based UI setup
   updateRoleUI();
@@ -308,11 +311,54 @@ function showApp() {
   }, 10000); // 10s poll
 }
 
+
 function hasPermission(permission) {
   return App.user && App.user.permissions && App.user.permissions.includes(permission);
 }
 
 function updateRoleUI() {
+  const role = App.user.role;
+  const isStaffRole = role === 'staff';
+  
+  // Hide nav sections for staff (only dashboard + orders)
+  if (isStaffRole) {
+    qsa('[data-section="section-customers"], [data-section="section-products"]').forEach(nav => {
+      nav.style.display = 'none';
+    });
+    // Staff message
+    const pageTitle = qs('.page-title');
+    if (pageTitle && !pageTitle.dataset.staffMsg) {
+      pageTitle.dataset.staffMsg = '1';
+      pageTitle.innerHTML += ' <span style="font-size:.7rem;color:var(--yellow);font-weight:400">(Staff: Pending orders only)</span>';
+    }
+  }
+  
+  // Staff: Restrict orders status filter to pending only
+  const statusFilter = $('orders-status-filter');
+  if (isStaffRole && statusFilter) {
+    statusFilter.innerHTML = '<option value="pending" selected>Pending</option>';
+    statusFilter.title = 'Staff: Pending orders only';
+  } else if (statusFilter) {
+    // Reset for non-staff
+    const statuses = ['', 'pending','confirmed','processing','shipped','delivered','cancelled'];
+    statusFilter.innerHTML = statuses.map(s => `<option value="${s}" ${App.ordersFilters.status === s ? 'selected' : ''}>${s === '' ? 'All Statuses' : s}</option>`).join('');
+  }
+  
+  // Staff: Hide date_to input, grey date_from
+  const dateTo = $('orders-date-to');
+  const dateInputs = qsa('input[type="date"]');
+  if (isStaffRole) {
+    if (dateTo) dateTo.style.display = 'none';
+    dateInputs.forEach(input => {
+      input.classList.add('staff-date-grey');
+      input.title = 'Staff view simplified';
+    });
+    App.ordersFilters.date_to = ''; // Clear filter
+  } else {
+    if (dateTo) dateTo.style.display = '';
+    dateInputs.forEach(input => input.classList.remove('staff-date-grey'));
+  }
+  
   // Permissions-based UI
   const adminOnly = qsa('.admin-only');
   const managerOnly = qsa('.manager-staff-only');
@@ -325,12 +371,36 @@ function updateRoleUI() {
     btn.style.display = hasPermission('order.delete') || hasPermission('customer.delete') || hasPermission('product.delete') ? '' : 'none';
   });
   
-  // New Order button - requires create perms
+  // New Order button - requires create perms (staff OK)
   const newOrderBtns = qsa('[onclick*="NewOrder"], [onclick*="openNewOrderForm"]');
   newOrderBtns.forEach(btn => {
     btn.style.display = hasPermission('order.create') ? '' : 'none';
   });
+  
+  // Staff: Hide edit for non-pending orders
+  if (isStaffRole) {
+    qsa('.btn[onclick*="editOrder"]').forEach(btn => {
+      const row = btn.closest('tr');
+      const statusCell = row.querySelector('.badge');
+      if (statusCell && !statusCell.textContent.toLowerCase().includes('pending')) {
+        btn.style.display = 'none';
+        btn.title = 'Staff can only edit pending orders';
+      }
+    });
+  }
+  
+  // Force staff orders filter to pending
+  if (isStaffRole && App.ordersFilters.status !== 'pending') {
+    App.ordersFilters.status = 'pending';
+    if ($('orders-status-filter')) $('orders-status-filter').value = 'pending';
+    loadOrders(1);
+  }
 }
+
+function isStaff() {
+  return App.user && App.user.role === 'staff';
+}
+
 
 // ════════════════════════════════════════════════════════
 // DASHBOARD
@@ -575,9 +645,10 @@ function renderOrdersTable(orders) {
           <button class="btn btn-secondary btn-sm btn-icon" title="View" onclick="viewOrder(${o.id})">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
-          <button class="btn btn-secondary btn-sm btn-icon" title="Edit" onclick="editOrder(${o.id})">
+          <button class="btn btn-secondary btn-sm btn-icon ${App.user?.role === 'staff' && o.status !== 'pending' ? 'disabled-staff' : ''}" title="${App.user?.role === 'staff' && o.status !== 'pending' ? 'Staff: Pending only' : 'Edit'}" onclick="${App.user?.role === 'staff' && o.status !== 'pending' ? '' : 'editOrder(' + o.id + ')'}" ${App.user?.role === 'staff' && o.status !== 'pending' ? 'disabled' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
+
           ${App.user?.role === 'admin' ? `<button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="deleteOrder(${o.id},'${o.order_number}')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
           </button>` : ''}
@@ -794,9 +865,12 @@ async function renderOrderForm(order) {
       <div class="form-group">
         <label>Order Status</label>
         <select id="of-status">
-          ${['pending','confirmed','processing','shipped','delivered','cancelled'].map(s =>
-            `<option value="${s}" ${(order?.status||'pending') === s ? 'selected':''} >${s}</option>`
-          ).join('')}
+          ${isStaff() ? 
+            `<option value="pending" ${(order?.status||'pending') === 'pending' ? 'selected':''}>Pending</option>` :
+            ['pending','confirmed','processing','shipped','delivered','cancelled'].map(s =>
+              `<option value="${s}" ${(order?.status||'pending') === s ? 'selected':''}>${s}</option>`
+            ).join('')
+          }
         </select>
       </div>
       <div class="form-group">
@@ -1329,23 +1403,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (savedTheme === 'light') document.documentElement.classList.add('light');
   updateThemeIcon();
 
-  // Load notifications immediately for badge (works even if unauthenticated - hides on 401)
-  loadNotifications();
-
-  // Check existing session - graceful 401 handling
+// Check existing session first (silent)
   try {
     const data = await api('api/auth.php?action=me');
     App.user = data.user;
     App.csrf = data.csrf;
-    showApp();
+    showApp(); // This calls loadNotifications()
   } catch (err) {
-    if (err.status === 401) {
-      console.log('No active session - showing login');
-    } else {
+    if (err.status !== 401) {
       console.error('Session check failed:', err);
     }
+    // 401 = no session, show login (silent)
     $('login-screen').style.display = 'flex';
   }
+
 
   // Login form
   $('login-form').addEventListener('submit', login);

@@ -1,8 +1,25 @@
 <?php
 require_once __DIR__ . '/config/helpers.php';
 bootSession();
-// Sessions are checked client-side via JS API call
+
+// Make role-select.php the first page ALWAYS
+if (empty($_GET['role'])) {
+  header('Location: role-select.php');
+  exit;
+}
+$roleHint = $_GET['role'] ?? ($_POST['role'] ?? 'staff');
+
+// Handle direct login from role-select.php
+if ($_POST['action'] === 'login') {
+  $_SESSION['temp_role'] = $roleHint;
+  // Forward to auth API
+  $_POST['action'] = 'login';
+  include 'api/auth.php';
+  exit;
+}
 ?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -14,7 +31,11 @@ bootSession();
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+  <script>
+    window.roleHint = <?php echo json_encode($roleHint); ?>;
+  </script>
   <script src="assets/js/app.js" defer></script>
+
 </head>
 
 <body>
@@ -440,7 +461,7 @@ bootSession();
               <option value="cancelled">Cancelled</option>
             </select>
             <input type="date" class="filter-select" id="orders-date-from" placeholder="From date">
-            <input type="date" class="filter-select" id="orders-date-to" placeholder="To date">
+            <input type="date" class="filter-select" id="orders-date-to" data-staff-hide placeholder="To date">
           </div>
 
           <div class="card">

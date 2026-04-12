@@ -165,30 +165,70 @@
     <p class="subtitle">Select your role to continue</p>
 
     <div class="role-grid">
-        <div class="role-card admin" onclick="goToLogin('admin')">
+        <div class="role-card admin" onclick="selectRole('admin')">
             <div class="role-icon">👑</div>
             <div class="role-title">Admin</div>
-            <div class="role-desc">Full system access - manage users, orders, customers, products</div>
+            <div class="role-desc">Full system access - manage users, orders, customers,
+                products<br><small>Click to use</small></div>
         </div>
-
-        <div class="role-card manager" onclick="goToLogin('manager')">
+        <div class="role-card manager" onclick="selectRole('manager')">
             <div class="role-icon">📊</div>
             <div class="role-title">Manager</div>
-            <div class="role-desc">Order management, customer support, reporting</div>
+            <div class="role-desc">Order management, reporting<br><small>Click to use</small></div>
         </div>
-
-        <div class="role-card staff" onclick="goToLogin('staff')">
+        <div class="role-card staff" onclick="selectRole('staff')">
             <div class="role-icon">🛒</div>
             <div class="role-title">Staff</div>
-            <div class="role-desc">Own orders & dashboard access</div>
+            <div class="role-desc">Dashboard + own pending orders only<br><small>Click to use</small>
+            </div>
         </div>
     </div>
 
     <script>
-        function goToLogin(role) {
-            window.location = 'index.php?role=' + role;
+        function selectRole(role) {
+            document.getElementById('role-input').value = role;
+            document.getElementById('role-display').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+
+            // Visual feedback
+            document.querySelectorAll('.role-card').forEach(card => card.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
+
+            // Auto-submit after 1s or Enter
+            setTimeout(() => document.getElementById('role-login-form').submit(), 1200);
         }
+
+        document.getElementById('role-login-form').addEventListener('submit', function (e) {
+            if (!document.getElementById('role-input').value) {
+                e.preventDefault();
+                alert('Please select a role first!');
+            }
+        });
     </script>
+
+    <style>
+        .role-card.selected {
+            transform: scale(1.02) !important;
+            border-color: var(--gold) !important;
+            box-shadow: 0 20px 40px rgba(240, 165, 0, .25) !important;
+        }
+
+        .login-fields {
+            background: rgba(20, 28, 46, .6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .role-desc small {
+            font-size: .75rem;
+            opacity: .8;
+            display: block;
+            margin-top: .5rem;
+        }
+    </style>
+
 </body>
 
 </html>

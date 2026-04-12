@@ -192,12 +192,18 @@ img { max-width: 100%; }
 
 .login-icon-right .input-icon {
   left: auto;
-  right: 16px;  /* Aligned with eye toggle at 12px + padding adjustment */
+  right: 44px;  /* Fixed: Moved left of eye-toggle (12px + padding) */
 }
 .login-icon-right input {
   padding-left: 16px;
-  padding-right: 44px;  /* Reduced to match eye positioning */
+  padding-right: 56px;  /* Space for icon(44px) + eye(12px) */
 }
+
+/* Ensure no overlap */
+.eye-toggle {
+  right: 12px !important;
+}
+
 
 .form-group input,
 .form-group select,
@@ -731,6 +737,19 @@ tr:hover td { background: rgba(255,255,255,.02); }
   transition: border-color var(--transition);
 }
 .search-wrap input:focus { border-color: var(--gold); }
+
+.staff-date-grey {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  background: var(--card-hover) !important;
+  color: var(--text-muted) !important;
+}
+
+.staff-mode input[type="date"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--card-hover);
+}
 
 .filter-select {
   background: var(--card);

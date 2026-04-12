@@ -22,17 +22,28 @@ $pdo = db();
 if ($method === 'GET') {
 
     if ($id) {
-        // Single order with items
-        $stmt = $pdo->prepare(
-            "SELECT o.*, u.name as creator_name
-             FROM orders o
-             LEFT JOIN users u ON u.id = o.created_by
-             WHERE o.id = ?"
-        );
-        $stmt->execute([$id]);
+        // Single order with items - STAFF RESTRICTION
+        if (hasRole(['staff'])) {
+            $stmt = $pdo->prepare(
+                "SELECT o.*, u.name as creator_name
+                 FROM orders o
+                 LEFT JOIN users u ON u.id = o.created_by
+                 WHERE o.id = ? AND o.created_by = ? AND o.status = 'pending' AND o.deleted_at IS NULL"
+            );
+            $stmt->execute([$id, $user['id']]);
+        } else {
+            $stmt = $pdo->prepare(
+                "SELECT o.*, u.name as creator_name
+                 FROM orders o
+                 LEFT JOIN users u ON u.id = o.created_by
+                 WHERE o.id = ? AND o.deleted_at IS NULL"
+            );
+            $stmt->execute([$id]);
+        }
         $order = $stmt->fetch();
         if (!$order)
-            jsonResp(['error' => 'Order not found'], 404);
+            jsonResp(['error' => 'Order not found or access denied'], 404);
+
 
         $items = $pdo->prepare(
             'SELECT * FROM order_items WHERE order_id = ? ORDER BY id'
@@ -231,10 +242,11 @@ if ($method === 'PUT' && $id) {
     if (!$order)
         jsonResp(['error' => 'Order not found'], 404);
 
-    // Permission check for update
+    // Permission check for update (staff: own+pending only)
     if (!canEditOrder($order)) {
-        jsonResp(['error' => 'Forbidden - insufficient permissions'], 403);
+        jsonResp(['error' => 'Access denied - cannot edit this order (Staff: own pending only)'], 403);
     }
+
 
     $items = $data['items'] ?? null;
     $subtotal = 0;
@@ -321,8 +333,9 @@ if ($method === 'PATCH' && $id && $action === 'status') {
         jsonResp(['error' => 'Not found'], 404);
 
     if (!canChangeStatus($order, $status)) {
-        jsonResp(['error' => 'Forbidden - cannot change to this status'], 403);
+        jsonResp(['error' => 'Access denied - cannot change status (Staff: pending only)'], 403);
     }
+
 
     // Manager locks on processing
     $updates = ['status' => $status];
