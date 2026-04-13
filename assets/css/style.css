@@ -236,6 +236,7 @@ img { max-width: 100%; }
   font-size: 1.8rem;
   margin-bottom: .5rem;
   background: linear-gradient(135deg, #f0a500, #3b82f6);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
