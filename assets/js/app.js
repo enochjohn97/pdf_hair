@@ -1110,13 +1110,18 @@ async function submitOrderForm() {
     const response = await api(endpoint, method, payload);
     if (isEdit) {
       showToast('success', 'Order Updated', 'Changes saved successfully');
+      closePanel();
+      loadOrders(App.ordersPage);
+      loadDashboard();
     } else {
-      const total = fmtCurrency(payload.items.reduce((s, i) => s + i.line_total, 0));
-      showToast('success', `Order Created`, `New order created successfully`);
+      showToast('success', 'Order Created', 'New order created successfully');
+      closePanel();
+      // Navigate to orders section and land on page 1 so the new order is visible immediately
+      navigate('section-orders');
+      App.ordersPage = 1;
+      loadOrders(1);
+      loadDashboard();
     }
-    closePanel();
-    loadOrders(App.ordersPage);
-    loadDashboard();
   } catch (err) {
     if (err.data?.require_force) {
       showToast('warning', 'Duplicate Detected', `A similar order exists: ${err.data.duplicate.order_number}`);
@@ -1126,7 +1131,11 @@ async function submitOrderForm() {
       `, [{ label: 'Create Anyway', action: async () => {
         await api(endpoint, method, { ...payload, force: true });
         showToast('success', 'Order Created', 'Duplicate was created successfully');
-        closePanel(); loadOrders(); loadDashboard();
+        closePanel();
+        navigate('section-orders');
+        App.ordersPage = 1;
+        loadOrders(1);
+        loadDashboard();
       }}]);
     } else {
       showToast('error', 'Failed to save order', err.message);
