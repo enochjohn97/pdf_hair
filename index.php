@@ -236,6 +236,9 @@ if (($_POST['action'] ?? '') === 'login') {
       </div>
     </aside>
 
+    <!-- Sidebar backdrop (mobile) -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
+
     <!-- MAIN ─────────────────────────────────────────────── -->
     <div class="main">
 
@@ -279,7 +282,7 @@ if (($_POST['action'] ?? '') === 'login') {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            New Order
+            <span>New Order</span>
           </button>
         </div>
 
@@ -383,7 +386,7 @@ if (($_POST['action'] ?? '') === 'login') {
           </div>
 
           <!-- Bottom Row - Full height -->
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;height:calc(100% - 48px);">
+          <div class="dashboard-bottom-row" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
             <div class="card" style="display:flex;flex-direction:column;height:100%;">
               <div class="card-header">
                 <div class="card-title">Recent Orders</div>

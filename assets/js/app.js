@@ -191,7 +191,11 @@ function navigate(sectionId) {
   }
 
   // Close sidebar on mobile
-  if (window.innerWidth < 768) $('sidebar').classList.remove('open');
+  if (window.innerWidth < 768) {
+    $('sidebar').classList.remove('open');
+    const backdrop = $('sidebar-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
 
   // Load section data
   if (sectionId === 'section-dashboard')  loadDashboard();
@@ -1460,6 +1464,19 @@ function switchRole(role) {
 }
 
 // ── Theme & UI Utils ─────────────────────────────────────
+// Toggle sidebar open/closed (also controls mobile backdrop)
+function toggleSidebar(open) {
+  const sidebar = $('sidebar');
+  const backdrop = $('sidebar-backdrop');
+  if (open === undefined) {
+    const isOpen = sidebar.classList.toggle('open');
+    if (backdrop) backdrop.classList.toggle('open', isOpen);
+  } else {
+    sidebar.classList.toggle('open', open);
+    if (backdrop) backdrop.classList.toggle('open', open);
+  }
+}
+
 function toggleTheme() {
   document.documentElement.classList.toggle('light');
   const isLight = document.documentElement.classList.contains('light');
@@ -1559,7 +1576,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Mobile menu
   $('menu-toggle').addEventListener('click', () => {
-    $('sidebar').classList.toggle('open');
+    const isOpen = $('sidebar').classList.toggle('open');
+    const backdrop = $('sidebar-backdrop');
+    if (backdrop) backdrop.classList.toggle('open', isOpen);
   });
 
   // Overlay

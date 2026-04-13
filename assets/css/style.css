@@ -88,15 +88,14 @@ html.light {
 
 /* ── Reset ──────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-html { height: 100%; }
+html { scroll-behavior: smooth; height: 100%; }
 body {
   font-family: 'Outfit', sans-serif;
   background: var(--bg);
   color: var(--text);
-  height: 100vh;
+  height: 100%;
   line-height: 1.6;
-  overflow: hidden;
+  overflow: hidden; /* only the .content area scrolls */
 }
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
@@ -578,8 +577,7 @@ img { max-width: 100%; }
   bottom: 0;
   display: flex;
   flex-direction: column;
-  width: calc(100vw - var(--sidebar-w));
-  min-height: 100vh;
+  overflow: hidden; /* children handle their own scrolling */
 }
 
 .topbar {
@@ -587,9 +585,12 @@ img { max-width: 100%; }
   border-bottom: 1px solid var(--border);
   padding: 0 var(--content-pad);
   height: 64px;
+  min-height: 64px;
+  flex-shrink: 0;
   display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
+  position: relative; z-index: 100;
   backdrop-filter: blur(10px);
+  gap: 8px;
 }
 .topbar-left { display: flex; align-items: center; gap: 16px; }
 .page-title { font-size: 1.2rem; font-weight: 700; }
@@ -614,11 +615,11 @@ img { max-width: 100%; }
 }
 
 .notifications-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 340px;
-  max-height: 400px;
+  position: fixed;
+  top: 64px;
+  right: 8px;
+  width: min(340px, calc(100vw - 16px));
+  max-height: min(400px, calc(100vh - 80px));
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -627,7 +628,6 @@ img { max-width: 100%; }
   display: flex;
   flex-direction: column;
   animation: slideDown 0.2s ease;
-  margin-top: 8px;
 }
 
 .notif-header {
@@ -764,8 +764,10 @@ img { max-width: 100%; }
 
 .content { 
   padding: var(--content-pad); 
-  flex: 1; 
+  flex: 1;
+  min-height: 0; /* critical: allow flex child to shrink & scroll */
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -773,7 +775,7 @@ img { max-width: 100%; }
    ════════════════════════════════════════════════════════ */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -828,6 +830,7 @@ img { max-width: 100%; }
   grid-template-columns: 2fr 1fr;
   gap: 16px;
   margin-bottom: 24px;
+  min-width: 0;
 }
 
 .card {
@@ -1369,80 +1372,183 @@ tr:hover td { background: rgba(255,255,255,.02); }
 /* ════════════════════════════════════════════════════════
    RESPONSIVE
    ════════════════════════════════════════════════════════ */
-@media (max-width: 1400px) {
+
+/* ── Large desktops: keep 4-col stats, 2-col charts ─────── */
+@media (min-width: 1280px) {
+  .stats-grid { grid-template-columns: repeat(4, 1fr); }
+  .charts-grid { grid-template-columns: 2fr 1fr; }
+}
+
+/* ── Medium desktops / tablets landscape ────────────────── */
+@media (max-width: 1279px) and (min-width: 1025px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .charts-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 1024px) {
-  .stats-grid { grid-template-columns: 1fr; }
+/* ── Tablets portrait ───────────────────────────────────── */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .card-body { height: clamp(240px, 38vh, 360px); }
 }
 
+/* ── Mobile / small tablets ─────────────────────────────── */
 @media (max-width: 768px) {
   :root { 
     --content-pad: var(--content-pad-sm);
     --sidebar-w: 0px; 
   }
 
+  /* Sidebar collapses off-screen; toggled via JS adding .open */
   .sidebar {
     transform: translateX(-260px);
     width: 260px;
+    z-index: 500;
   }
-  .sidebar.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,.5); }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 30px rgba(0,0,0,.5);
+  }
+
+  /* Semi-transparent backdrop when sidebar is open */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 499;
+  }
+  .sidebar-backdrop.open { display: block; }
 
   .menu-toggle { display: flex; }
-  .main { margin-left: 0; }
+
+  /* Main area fills full width */
+  .main {
+    left: 0;
+  }
+
+  .topbar { padding: 0 12px; }
+  .page-title { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+
+  /* Hide New Order button text on very small topbar */
+  .topbar .btn-primary span { display: none; }
 
   .content { 
     padding: var(--content-pad-sm) var(--content-pad-xs); 
   }
-  .topbar { padding: 0 var(--content-pad-xs); }
 
+  /* Stats: 2 columns on tablet */
   .stats-grid { 
     grid-template-columns: repeat(2, 1fr); 
-    gap: 12px; 
+    gap: 10px; 
   }
   .stat-card { padding: 16px; }
   .stat-value { font-size: 1.4rem; }
 
+  /* Charts: single column */
   .charts-grid { grid-template-columns: 1fr !important; }
-  .card-body { height: clamp(240px, 40vh, 320px) !important; }
+  .card-body { height: clamp(220px, 38vh, 320px) !important; }
+
+  /* Dashboard bottom row: stack vertically */
+  .dashboard-bottom-row {
+    grid-template-columns: 1fr !important;
+  }
 
   .detail-grid { grid-template-columns: 1fr; }
+
   .toolbar { 
     flex-direction: column; 
     align-items: stretch; 
     gap: 8px;
   }
+  .filter-select { width: 100%; }
   .search-wrap { min-width: 0; }
 
-  .panel { width: 100vw; right: 0; }
+  /* Section header: stack on small screens */
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .section-header > div:last-child {
+    width: 100%;
+    justify-content: flex-end;
+  }
 
-  th, td { padding: 12px 10px; }
+  /* Full-width slide panel */
+  .panel { width: 100vw; }
+
+  th, td { padding: 10px 8px; font-size: .8rem; }
   .section-title { font-size: 1.4rem; }
+
+  /* Pagination: compact on mobile */
+  .pagination { flex-direction: column; gap: 8px; align-items: flex-start; }
 }
 
-@media (max-width: 480px) {
+/* ── Small mobiles ───────────────────────────────────────── */
+@media (max-width: 640px) {
   :root { 
     --content-pad: var(--content-pad-xs);
   }
+
+  .topbar-right { gap: 6px; }
+
+  /* Stats: still 2 columns to preserve space efficiency */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .stat-icon { width: 36px; height: 36px; margin-bottom: 10px; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-label { font-size: .7rem; }
+
+  /* Role selector cards: single column */
+  .role-selector-page .role-grid {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  .role-selector-page .role-card {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 340px;
+    height: auto;
+    padding: 1.75rem;
+  }
+}
+
+/* ── Very small phones ───────────────────────────────────── */
+@media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr; }
   .login-card { padding: 28px 20px; }
-  
-  /* Full-width tables on mobile */
+
+  /* Full-width tables on mobile with horizontal scroll */
   .table-wrap { 
     margin: 0 -12px;
     border-radius: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  table { min-width: 700px; }
+  table { min-width: 600px; }
+
+  /* Topbar: tighten even further */
+  .topbar { padding: 0 8px; height: 56px; min-height: 56px; }
+  .page-title { max-width: 100px; font-size: .9rem; }
+
+  /* Toast: full width on tiny screens */
+  #toast-container { left: 8px; right: 8px; top: 64px; }
+  .toast { min-width: unset; max-width: 100%; }
+
+  /* Status steps: scrollable row */
+  .status-steps { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .status-step { flex-shrink: 0; }
 }
 
 /* ── Print ───────────────────────────────────────────────── */
 @media print {
   .sidebar, .topbar, .toolbar, .pagination, .btn, .panel-overlay { display: none !important; }
-  .main { margin-left: 0; }
-  .content { padding: 0; }
-  body { background: #fff; color: #111; }
+  .main { left: 0; }
+  .content { padding: 0; overflow: visible; }
+  body { background: #fff; color: #111; overflow: visible; }
   .card { border: 1px solid #ddd; box-shadow: none; }
   th { color: #444; }
 }
@@ -1450,11 +1556,11 @@ tr:hover td { background: rgba(255,255,255,.02); }
 /* ── Icon visibility across themes ──────────────────────── */
 #notifications-btn svg,
 #theme-toggle svg {
-  color: #8a96aa !important; /* Steel gray/mid-tone for visibility */
+  color: #8a96aa !important;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: grayscale(1) invert(0.5); /* Gray calendar icon */
+  filter: grayscale(1) invert(0.5);
   opacity: 0.7;
   cursor: pointer;
 }
