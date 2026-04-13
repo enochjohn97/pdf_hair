@@ -400,7 +400,7 @@ img { max-width: 100%; }
   padding: 12px 16px;
   color: var(--text);
   font-size: .95rem;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), opacity var(--transition);
   outline: none;
   background-image: none !important;
 }
@@ -409,6 +409,14 @@ img { max-width: 100%; }
 .form-group textarea:focus {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(240,165,0,.12);
+}
+.form-group input:disabled,
+.form-group select:disabled,
+.form-group input.disabled-input {
+  background: rgba(255,255,255,.03);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 .form-group select option { background: var(--card); }
 .form-group textarea { resize: vertical; min-height: 80px; }
@@ -652,6 +660,7 @@ img { max-width: 100%; }
 .notif-icon {
   width: 36px;
   height: 36px;
+  color: white;
   border-radius: 50%;
   flex-shrink: 0;
   display: flex;
@@ -1186,6 +1195,27 @@ tr:hover td { background: rgba(255,255,255,.02); }
   margin-top: 8px;
 }
 .toast.fade-out { animation: fadeOut .3s forwards; }
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  margin-left: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color var(--transition), background var(--transition);
+  line-height: 1;
+  opacity: 0.7;
+}
+.toast-close:hover {
+  color: var(--text);
+  background: rgba(255,255,255,.1);
+  opacity: 1;
+}
 
 /* ════════════════════════════════════════════════════════
    MODAL
@@ -1414,4 +1444,20 @@ tr:hover td { background: rgba(255,255,255,.02); }
   body { background: #fff; color: #111; }
   .card { border: 1px solid #ddd; box-shadow: none; }
   th { color: #444; }
+}
+
+/* ── Icon visibility across themes ──────────────────────── */
+#notifications-btn svg,
+#theme-toggle svg {
+  color: #8a96aa !important; /* Steel gray/mid-tone for visibility */
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: grayscale(1) invert(0.5); /* Gray calendar icon */
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+html.light input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: grayscale(1) opacity(0.6);
 }

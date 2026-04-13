@@ -31,41 +31,66 @@ if ($method === 'GET') {
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $offset = ($page - 1) * $limit;
 
-    // Staff search only
-    if (empty($search) && hasRole(['staff'])) {
+    // Staff search only (unless it's for a dropdown)
+    if (empty($search) && hasRole(['staff']) && !empty($_GET['dropdown']) === false) {
         jsonResp(['data' => [], 'total' => 0, 'message' => 'Search required for staff']);
         return;
     }
 
     // Dropdown mode for order forms (staff/manager can see more)
     $isDropdown = !empty($_GET['dropdown']);
+    $managerId = isset($_GET['manager_id']) ? (int)$_GET['manager_id'] : getManagerId();
+
+    $where = ['deleted_at IS NULL'];
+    $params = [];
+
+    if ($managerId) {
+        $where[] = 'c.manager_id = ?';
+        $params[] = $managerId;
+    }
+
     if ($isDropdown || $search) {
-        $s = $isDropdown ? '' : "%$search%";
-        $stmt = $pdo->prepare(
-            'SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
-             FROM customers c WHERE ' . ($isDropdown ? '1=1' : '(name LIKE ? OR email LIKE ? OR phone LIKE ?)') . '
-             AND c.deleted_at IS NULL
-             ORDER BY name LIMIT ? OFFSET ?'
-        );
-        if ($isDropdown) {
-            $stmt->execute([$limit, $offset]);
-        } else {
-            $stmt->execute([$s, $s, $s, $limit, $offset]);
+        if ($search) {
+            $s = "%$search%";
+            $where[] = '(name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
         }
+
+        $whereSQL = implode(' AND ', $where);
+        $stmt = $pdo->prepare(
+            "SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
+             FROM customers c WHERE $whereSQL
+             ORDER BY name LIMIT ? OFFSET ?"
+        );
+        
+        $params[] = $limit;
+        $params[] = $offset;
+        $stmt->execute($params);
     } else {
         // Staff: require search unless dropdown
         if (hasRole(['staff']) && !$isDropdown) {
             jsonResp(['data' => [], 'total' => 0, 'message' => 'Search required for staff']);
             return;
         }
+        
+        $whereSQL = implode(' AND ', $where);
         $stmt = $pdo->prepare(
-            'SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
-             FROM customers c WHERE deleted_at IS NULL ORDER BY name LIMIT ? OFFSET ?'
+            "SELECT *, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as order_count
+             FROM customers c WHERE $whereSQL ORDER BY name LIMIT ? OFFSET ?"
         );
-        $stmt->execute([$limit, $offset]);
+        
+        $params[] = $limit;
+        $params[] = $offset;
+        $stmt->execute($params);
     }
 
-    $total = $pdo->query('SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL')->fetchColumn();
+    $countWhereSQL = implode(' AND ', $where);
+    $countParams = array_slice($params, 0, count($params) - 2);
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM customers c WHERE $countWhereSQL");
+    $countStmt->execute($countParams);
+    $total = $countStmt->fetchColumn();
     jsonResp(['data' => $stmt->fetchAll(), 'total' => (int) $total]);
 }
 
@@ -82,8 +107,9 @@ if ($method === 'POST') {
     if (!$name)
         jsonResp(['error' => 'Name is required'], 422);
 
+    $managerId = getManagerId();
     $stmt = $pdo->prepare(
-        'INSERT INTO customers (name, email, phone, address, notes) VALUES (?,?,?,?,?)'
+        'INSERT INTO customers (name, email, phone, address, notes, manager_id) VALUES (?,?,?,?,?,?)'
     );
     $stmt->execute([
         $name,
@@ -91,6 +117,7 @@ if ($method === 'POST') {
         clean($data['phone'] ?? ''),
         clean($data['address'] ?? ''),
         clean($data['notes'] ?? ''),
+        $managerId,
     ]);
     $newId = (int) $pdo->lastInsertId();
 

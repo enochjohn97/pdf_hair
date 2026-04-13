@@ -13,7 +13,7 @@ const App = {
   customers: [],
   currentOrder: null,
   ordersPage: 1,
-  ordersFilters: { status: '', search: '', date_from: '', date_to: '' },
+  ordersFilters: { status: '', search: '', date_from: '' },
   chart: null,
 };
 
@@ -76,7 +76,9 @@ function showToast(type, title, msg = '', duration = null) {
         <div class="toast-title">${title}</div>
         ${msg ? `<div class="toast-msg">${formattedMsg}</div>` : ''}
       </div>
-      <button class="toast-close" onclick="this.closest('.toast').remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:2px;margin-left:12px;">×</button>
+      <button class="toast-close" onclick="this.closest('.toast').remove()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
     <div class="toast-progress" style="animation: toastProgress ${duration}ms linear forwards;"></div>
   `;
@@ -212,32 +214,60 @@ async function login(e) {
       password: $('login-pass').value,
       role_hint: window.roleHint,
     });
-    App.user = data.user;
-    App.csrf = data.csrf;
-    showApp();
-    showToast('success', `Welcome back, ${App.user.name}!`, `Signed in as ${App.user.role.toUpperCase()}`);
+    
+    if (data && data.success) {
+      App.user = data.user;
+      App.csrf = data.csrf;
+      showApp();
+      showToast('success', `Welcome back, ${App.user.name}!`, `Signed in as ${App.user.role.toUpperCase()}`);
+    } else {
+      throw new Error(data.error || 'Authentication failed');
+    }
   } catch (err) {
-    $('login-error').textContent = err.data?.error || 'Login failed. Check your credentials.';
-    $('login-error').style.display = 'block';
+    const errorEl = $('login-error');
+    if (errorEl) {
+      errorEl.textContent = err.data?.error || 'Login failed. Check your credentials.';
+      errorEl.style.display = 'block';
+    }
     showToast('error', 'Login Failed', err.data?.error || 'Check credentials');
     btn.disabled = false;
     btn.textContent = 'Sign In';
   }
 }
 
-async function logout() {
-  try { 
-    const response = await api('api/auth.php?action=logout', 'POST'); 
-    showToast('info', 'Signed Out', 'See you next time!');
-    // Clear temp session data
-    sessionStorage.clear();
-    // Redirect to role-select
-    setTimeout(() => {
-      window.location.href = response.redirect || 'role-select.php';
-    }, 800);
-  } catch (err) {
-    showToast('error', 'Logout Failed', 'Please refresh the page');
-  }
+function logout() {
+  showModal(
+    'Sign Out',
+    `<div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(239,68,68,.12);display:flex;align-items:center;justify-content:center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <div style="text-align:center">
+        <div style="font-weight:600;font-size:1rem;margin-bottom:6px">Are you sure you want to sign out?</div>
+        <div style="color:var(--text-muted);font-size:.875rem">You will need to log in again to access the dashboard.</div>
+      </div>
+    </div>`,
+    [{
+      label: 'Yes, Sign Out',
+      class: 'btn-danger',
+      action: async () => {
+        try {
+          const response = await api('api/auth.php?action=logout', 'POST');
+          showToast('info', 'Signed Out', 'See you next time!');
+          sessionStorage.clear();
+          setTimeout(() => {
+            window.location.href = response.redirect || 'role-select.php';
+          }, 800);
+        } catch (err) {
+          showToast('error', 'Logout Failed', 'Please refresh the page');
+        }
+      }
+    }]
+  );
 }
 
 // Moved to showApp() after auth
@@ -298,9 +328,17 @@ function renderNotifications(notifs) {
     return;
   }
   
+  const notifIcons = {
+    login:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
+    order_created:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    order_status: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>`,
+    low_stock:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    default:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  };
+
   list.innerHTML = notifs.map(n => `
     <div class="notif-item ${n.is_read ? 'read' : 'unread'}" onclick="markNotificationRead(${n.id})">
-      <div class="notif-icon notif-${n.type}"></div>
+      <div class="notif-icon notif-${n.type}">${notifIcons[n.type] || notifIcons.default}</div>
       <div class="notif-content">
         <div class="notif-title">${n.title}</div>
         <div class="notif-message">${n.message}</div>
@@ -381,14 +419,14 @@ function updateRoleUI() {
     statusFilter.innerHTML = statuses.map(s => `<option value="${s}" ${App.ordersFilters.status === s ? 'selected' : ''}>${s === '' ? 'All Statuses' : s}</option>`).join('');
   }
   
-  // Staff: Hide date_to input, grey date_from
-  const dateTo = $('orders-date-to');
+  // Staff: grey date input
   const dateInputs = qsa('input[type="date"]');
   if (isStaffRole) {
-    if (dateTo) dateTo.parentNode.style.display = 'none';
-    dateInputs.forEach(input => input.closest('.filter-select')?.remove() || input.classList.add('staff-date-grey'));
-    input.title = 'Staff: Pending orders only - simplified view';
-    App.ordersFilters.date_to = ''; 
+    dateInputs.forEach(input => {
+      input.classList.add('staff-date-grey');
+      input.title = 'Staff: Pending orders only - simplified view';
+    });
+    App.ordersFilters.date_from = '';
   } else {
     // Normal view
   }
@@ -648,7 +686,6 @@ async function loadOrders(page = 1) {
     ...(f.status    && { status:    f.status }),
     ...(f.search    && { search:    f.search }),
     ...(f.date_from && { date_from: f.date_from }),
-    ...(f.date_to   && { date_to:   f.date_to }),
   });
 
   const tbody = $('orders-tbody');
@@ -854,13 +891,15 @@ async function renderOrderForm(order) {
   const isEdit = !!order;
   const title  = isEdit ? `Edit ${order.order_number}` : 'New Order';
 
-  const customerOptions = App.customers.map(c =>
-    `<option value="${c.id}" data-name="${c.name}" ${order?.customer_id == c.id ? 'selected' : ''}>${c.name}</option>`
-  ).join('');
+  const customerOptions = App.customers.length 
+    ? App.customers.map(c => `<option value="${c.id}" data-name="${c.name}" ${order?.customer_id == c.id ? 'selected' : ''}>${c.name}</option>`).join('')
+    : '<option value="" disabled>No customers available. Contact manager.</option>';
 
-  const productOptions = App.products.map(p =>
-    `<option value="${p.id}" data-price="${p.price}" data-name="${p.name}">${p.name} — ${fmtCurrency(p.price)}</option>`
-  ).join('');
+  const customerListOptions = App.customers.map(c => `<option value="${c.name}">`).join('');
+
+  const productOptions = App.products.length
+    ? App.products.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${p.name}">${p.name} — ${fmtCurrency(p.price)}</option>`).join('')
+    : '<option value="" disabled>No products available. Contact manager.</option>';
 
   const html = `
     <div class="form-group">
@@ -873,12 +912,14 @@ async function renderOrderForm(order) {
     </div>
     <div class="form-group" id="of-name-wrap" style="${order?.customer_id ? 'display:none' : ''}">
       <label>Customer Name *</label>
-      <input type="text" id="of-customer-name" value="${order?.customer_name || ''}" placeholder="Enter customer name">
+      <input type="text" id="of-customer-name" list="of-customer-names-list" value="${order?.customer_name || ''}" placeholder="Enter customer name">
+      <datalist id="of-customer-names-list">
+        ${customerListOptions}
+      </datalist>
     </div>
 
     <div style="margin:20px 0 12px;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700">Order Items</div>
-      <button class="btn btn-secondary btn-sm" onclick="addOrderItem()">+ Add Item</button>
+      <div style="font-weight:700">Order Item</div>
     </div>
     <div id="of-items-container"></div>
     <div class="totals-box" id="of-totals">
@@ -951,20 +992,32 @@ async function renderOrderForm(order) {
 function renderItemRows() {
   const container = $('of-items-container');
   if (!container) return;
-  container.innerHTML = orderItems.map((item, i) => `
-    <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr auto;gap:6px;align-items:center;margin-bottom:8px;" id="item-row-${i}">
-      <select onchange="onProductSelect(this, ${i})" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:.82rem;outline:none">
-        <option value="">Custom item…</option>
-        ${window._productOptions}
-      </select>
-      <input type="text" placeholder="Item name" value="${item.product_name}" oninput="orderItems[${i}].product_name=this.value" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:.82rem;outline:none">
-      <div style="display:flex;gap:4px">
-        <input type="number" placeholder="Qty" value="${item.quantity}" min="0.01" step="0.01" oninput="orderItems[${i}].quantity=+this.value;updateOrderTotals()" style="width:60px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;color:var(--text);font-size:.82rem;outline:none;text-align:center">
-        <input type="number" placeholder="Price" value="${item.unit_price}" min="0" step="0.01" oninput="orderItems[${i}].unit_price=+this.value;updateOrderTotals()" style="width:100px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;color:var(--text);font-size:.82rem;font-family:'JetBrains Mono',monospace;outline:none;text-align:right">
+  container.innerHTML = orderItems.map((item, i) => {
+    // Re-build product options with the currently selected product marked
+    const builtOptions = App.products.length
+      ? App.products.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${p.name}" ${item.product_id == p.id ? 'selected' : ''}>${p.name} — ${fmtCurrency(p.price)}</option>`).join('')
+      : '<option value="" disabled>No products available. Contact manager.</option>';
+    return `
+    <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr;gap:10px;align-items:center;margin-bottom:8px;" id="item-row-${i}">
+      <div class="form-group" style="margin-bottom:0">
+        <select onchange="onProductSelect(this, ${i})" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:.82rem;outline:none;width:100%">
+          <option value="">-- Select Product --</option>
+          ${builtOptions}
+        </select>
       </div>
-      <button onclick="removeOrderItem(${i})" style="background:var(--red-bg);color:var(--red);border:none;border-radius:6px;padding:8px 10px;cursor:pointer;font-size:.9rem">✕</button>
+      <div style="display:flex;gap:4px">
+        <div style="flex:1">
+          <label style="font-size:.7rem;color:var(--text-muted);margin-bottom:2px;display:block">Quantity</label>
+          <input type="number" placeholder="Qty" value="${item.quantity}" min="0.01" step="0.01" oninput="orderItems[${i}].quantity=+this.value;updateOrderTotals()" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;color:var(--text);font-size:.82rem;outline:none;text-align:center">
+        </div>
+        <div style="flex:1.5">
+          <label style="font-size:.7rem;color:var(--text-muted);margin-bottom:2px;display:block">Unit Price</label>
+          <input type="number" placeholder="Price" value="${item.unit_price}" min="0" step="0.01" readonly style="width:100%;background:var(--border);border:1px solid var(--border);border-radius:6px;padding:8px 6px;color:var(--text-muted);font-size:.82rem;font-family:'JetBrains Mono',monospace;outline:none;text-align:right" title="Price is fixed from product selection">
+        </div>
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   updateOrderTotals();
 }
 
@@ -1008,16 +1061,19 @@ function onCustomerSelect(sel) {
   const val = sel.value;
   const nameWrap = $('of-name-wrap');
   const nameInput = $('of-customer-name');
+  
   if (val === '__new__') {
     nameWrap.style.display = '';
     nameInput.value = '';
+    nameInput.disabled = false;
+    nameInput.classList.remove('disabled-input');
     nameInput.focus();
   } else if (val) {
-    nameWrap.style.display = 'none';
+    nameWrap.style.display = ''; // Keep visible but disabled/readonly
     const opt = sel.options[sel.selectedIndex];
     nameInput.value = opt.dataset.name;
-  } else {
-    nameWrap.style.display = '';
+    nameInput.disabled = true;
+    nameInput.classList.add('disabled-input');
   }
 }
 
@@ -1362,7 +1418,7 @@ function skeletonRows(cols, rows) {
 
 function exportOrders() {
   const f = App.ordersFilters;
-  const params = new URLSearchParams({ type:'orders', ...(f.status && {status:f.status}), ...(f.date_from && {date_from:f.date_from}), ...(f.date_to && {date_to:f.date_to}) });
+  const params = new URLSearchParams({ type:'orders', ...(f.status && {status:f.status}), ...(f.date_from && {date_from:f.date_from}) });
   window.open(`api/export.php?${params}`, '_blank');
 }
 
@@ -1478,11 +1534,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('login-form').addEventListener('submit', login);
   
   // Auto-clear login error on input
-  $('login-email').addEventListener('input', () => {
-    $('login-error').style.display = 'none';
+  $('login-email')?.addEventListener('input', () => {
+    const err = $('login-error');
+    if (err) err.style.display = 'none';
   });
-  $('login-pass').addEventListener('input', () => {
-    $('login-error').style.display = 'none';
+  $('login-pass')?.addEventListener('input', () => {
+    const err = $('login-error');
+    if (err) err.style.display = 'none';
   });
 
   // Nav items
@@ -1514,11 +1572,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('orders-date-from').addEventListener('change', e => {
     App.ordersFilters.date_from = e.target.value;
-    loadOrders(1);
-  });
-
-  $('orders-date-to').addEventListener('change', e => {
-    App.ordersFilters.date_to = e.target.value;
     loadOrders(1);
   });
 

@@ -20,7 +20,7 @@ define('DB_HOST', $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: '127.0.0.1');
 define('DB_PORT', $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '3306');
 define('DB_NAME', $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'pdfhair_db');
 define('DB_USER', $_ENV['DB_USER'] ?? getenv('DB_USER') ?: 'pdfhair_user');
-define('DB_PASS', $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: 'change_me_immediately');
+define('DB_PASS', $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: 'Pdfhair@12345');
 define('DB_CHARSET', $_ENV['DB_CHARSET'] ?? getenv('DB_CHARSET') ?: 'utf8mb4');
 
 class Database

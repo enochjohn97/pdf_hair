@@ -137,6 +137,7 @@ if (($_POST['action'] ?? '') === 'login') {
             </button>
           </div>
         </div>
+        <div id="login-error" class="error-msg" style="display:none; margin-bottom:15px; color:var(--red); font-size:0.85rem; text-align:center; background:rgba(239, 68, 68, 0.1); padding: 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.2);"></div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="login-btn">Sign In</button>
       </form>
 
@@ -473,8 +474,7 @@ if (($_POST['action'] ?? '') === 'login') {
               <option value="delivered">Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            <input type="date" class="filter-select" id="orders-date-from" placeholder="From date">
-            <input type="date" class="filter-select" id="orders-date-to" data-staff-hide placeholder="To date">
+            <input type="date" class="filter-select" id="orders-date-from" placeholder="Date">
           </div>
 
           <div class="card">

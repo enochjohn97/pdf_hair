@@ -19,18 +19,18 @@ if ($method === 'GET') {
 
     $search = $_GET['search'] ?? '';
     $active = $_GET['active'] ?? null;
-    $where = ['1=1', 'deleted_at IS NULL'];
+    $managerId = isset($_GET['manager_id']) ? (int)$_GET['manager_id'] : getManagerId();
+
+    $where = ['deleted_at IS NULL'];
     $params = [];
 
-    // Staff search only
-    if (empty($search) && hasRole(['staff'])) {
-        jsonResp(['data' => []]);
-        return;
+    if ($managerId) {
+        $where[] = 'manager_id = ?';
+        $params[] = $managerId;
     }
 
-    $isDropdown = !empty($_GET['dropdown']);
-
     // Dropdown mode for order forms
+    $isDropdown = !empty($_GET['dropdown']);
     if ($isDropdown) {
         $where[] = 'is_active = 1';
     } else if (empty($search) && hasRole(['staff'])) {
@@ -68,9 +68,10 @@ if ($method === 'POST') {
     if (!isset($data['price']) || $data['price'] < 0)
         jsonResp(['error' => 'Valid price required'], 422);
 
+    $managerId = getManagerId();
     $stmt = $pdo->prepare(
-        'INSERT INTO products (name, description, price, stock_qty, unit, low_stock_alert, is_active)
-         VALUES (?,?,?,?,?,?,?)'
+        'INSERT INTO products (name, description, price, stock_qty, unit, low_stock_alert, is_active, manager_id)
+         VALUES (?,?,?,?,?,?,?,?)'
     );
     $stmt->execute([
         $name,
@@ -80,6 +81,7 @@ if ($method === 'POST') {
         clean($data['unit'] ?? 'piece'),
         max(0, (int) ($data['low_stock_alert'] ?? 5)),
         isset($data['is_active']) ? (int) $data['is_active'] : 1,
+        $managerId,
     ]);
     $newId = (int) $pdo->lastInsertId();
 

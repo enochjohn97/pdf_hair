@@ -55,13 +55,38 @@ function currentUser(): ?array
         $permissions = $_SESSION['temp_permissions'];
     }
 
+    // Fetch managed_by if not in session
+    if (!isset($_SESSION['managed_by']) && $role === 'staff') {
+        $stmt = db()->prepare("SELECT managed_by FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $_SESSION['managed_by'] = $stmt->fetchColumn();
+    }
+
     return [
         'id' => $_SESSION['user_id'],
         'name' => $_SESSION['user_name'],
         'email' => $_SESSION['user_email'],
         'role' => $role,
-        'permissions' => $permissions
+        'permissions' => $permissions,
+        'managed_by' => $_SESSION['managed_by'] ?? null
     ];
+}
+
+/**
+ * Returns the manager ID for the current context.
+ * For managers, it's their own ID.
+ * For staff, it's their managed_by ID.
+ * For admins, it depends (usually null or specified manager_id).
+ */
+function getManagerId(): ?int
+{
+    $user = currentUser();
+    if (!$user) return null;
+    
+    if ($user['role'] === 'manager') return (int) $user['id'];
+    if ($user['role'] === 'staff') return (int) ($user['managed_by'] ?? 0);
+    
+    return null;
 }
 
 function jsonResp(mixed $data, int $status = 200): never
@@ -70,6 +95,7 @@ function jsonResp(mixed $data, int $status = 200): never
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
     exit;
 }
 

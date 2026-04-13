@@ -363,7 +363,7 @@ if ($method === 'PATCH' && $id && $action === 'status') {
     if (hasRole(['manager']) && $status === 'processing') {
         $updates['locked_by_manager'] = 1;
     }
-    $setClause = 'status = ?, ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys(array_diff_key($updates, ['status' => 0]))));
+    $setClause = implode(', ', array_map(fn($k) => "$k = ?", array_keys($updates)));
     $pdo->prepare("UPDATE orders SET $setClause, updated_at = NOW() WHERE id = ?")
         ->execute(array_merge(array_values($updates), [$id]));
 
